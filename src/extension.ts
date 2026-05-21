@@ -5,7 +5,7 @@ import * as fs from 'fs';
 
 // Types
 interface ChatMessage {
-    role: 'user' | 'assistant';
+        role: 'user' | 'assistant';
     content: string;
     timestamp: number;
 }
@@ -94,7 +94,9 @@ function loadHistory() {
 
 function saveHistory() {
     if (extensionContext) {
-        if (chatHistory.length > 100) chatHistory = chatHistory.slice(-100);
+        if (chatHistory.length > 100) {
+            chatHistory = chatHistory.slice(-100);
+        }
         extensionContext.workspaceState.update('chatHistory', chatHistory);
     }
 }
@@ -139,7 +141,7 @@ function createStatusBarItem() {
 }
 
 function registerCommands() {
-    if (!extensionContext) return;
+    if (!extensionContext) {return;}
 
     // Add selected code to AI
     const addToAI = vscode.commands.registerCommand('ai-code-assistant.addToAI', () => {
@@ -164,24 +166,24 @@ function registerCommands() {
 
         const panel = createOrShowAIPanel();
 
-if (currentSelection) {
-    panel.webview.postMessage({
-        command: 'selectionLoaded',
-        code: currentSelection.code,
-        lineStart: currentSelection.lineStart,
-        lineEnd: currentSelection.lineEnd,
-        fileName: currentSelection.filePath.split(/[\\/]/).pop(),
-        isFullFile: false
-    });
-} else {
-    vscode.window.showErrorMessage('Failed to load selection');
-    return;
-}
+        if (currentSelection) {
+            panel.webview.postMessage({
+                command: 'selectionLoaded',
+                code: currentSelection.code,
+                lineStart: currentSelection.lineStart,
+                lineEnd: currentSelection.lineEnd,
+                fileName: currentSelection.filePath.split(/[\\/]/).pop(),
+                isFullFile: false
+            });
+        } else {
+            vscode.window.showErrorMessage('Failed to load selection');
+            return;
+        }
     });
 
     // Add entire file to AI
     const addFileToAI = vscode.commands.registerCommand('ai-code-assistant.addFileToAI', async (uri: vscode.Uri) => {
-        if (!uri) return;
+        if (!uri) {return;}
         
         try {
             const fileContent = await vscode.workspace.fs.readFile(uri);
@@ -237,13 +239,13 @@ if (currentSelection) {
             placeHolder: 'https://github.com/owner/repo/pull/123'
         });
         
-        if (!prUrl) return;
+        if (!prUrl) {return;}
         
         vscode.window.showInformationMessage('🔍 Analyzing pull request...');
         
         try {
             const match = prUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
-            if (!match) throw new Error('Invalid GitHub PR URL');
+            if (!match) {throw new Error('Invalid GitHub PR URL');}
             
             const [, owner, repo, prNumber] = match;
             const diff = await fetchGitHubPRDiff(owner, repo, prNumber);
@@ -289,18 +291,18 @@ if (currentSelection) {
             placeHolder: 'https://github.com/owner/repo/pull/123'
         });
         
-        if (!prUrl) return;
+        if (!prUrl) {return;}
         
         const comment = await vscode.window.showInputBox({
             prompt: 'Enter your review comment',
             placeHolder: 'Comment to post on PR'
         });
         
-        if (!comment) return;
+        if (!comment) {return;}
         
         try {
             const match = prUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
-            if (!match) throw new Error('Invalid URL');
+            if (!match) {throw new Error('Invalid URL');}
             
             const [, owner, repo, prNumber] = match;
             await postGitHubPRComment(owner, repo, prNumber, comment);
@@ -346,7 +348,7 @@ if (currentSelection) {
             placeHolder: 'Move this function to utils.js and update all imports'
         });
 
-        if (!prompt) return;
+        if (!prompt) {return;}
 
         vscode.window.showInformationMessage('🔍 Analyzing for multi-file changes...');
 
@@ -363,7 +365,7 @@ Output format: {"summary": "...", "changes": [{"filePath": "...", "action": "rep
             });
 
             const jsonMatch = response.data.result.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('Could not parse AI response');
+            if (!jsonMatch) {throw new Error('Could not parse AI response');}
             
             const plan: MultiFileEdit = JSON.parse(jsonMatch[0]);
             await showMultiFilePreview(plan);
@@ -460,7 +462,7 @@ function registerCodeActions() {
         {
             provideCodeActions(document, range) {
                 const code = document.getText(range);
-                if (!code || code.length < 5) return [];
+                if (!code || code.length < 5) {return [];}
                 
                 const actions = [];
                 
@@ -506,7 +508,7 @@ function registerNotebookSupport() {
 
 function setupPreCommitHook() {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceFolder) return;
+    if (!workspaceFolder) {return;}
     
     const hookPath = path.join(workspaceFolder, '.git', 'hooks', 'pre-commit');
     if (fs.existsSync(path.dirname(hookPath)) && !fs.existsSync(hookPath)) {
@@ -530,16 +532,16 @@ echo "Pre-commit checks passed"`;
 async function fetchGitHubPRDiff(owner: string, repo: string, prNumber: string): Promise<string> {
     const token = vscode.workspace.getConfiguration('ai-assistant').get<string>('githubToken');
     const headers: Record<string, string> = { 'Accept': 'application/vnd.github.v3.diff' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) {headers['Authorization'] = `Bearer ${token}`;}
     
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, { headers });
-    if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+    if (!response.ok) {throw new Error(`GitHub API error: ${response.status}`);}
     return await response.text();
 }
 
 async function postGitHubPRComment(owner: string, repo: string, prNumber: string, comment: string): Promise<void> {
     const token = vscode.workspace.getConfiguration('ai-assistant').get<string>('githubToken');
-    if (!token) throw new Error('GitHub token not configured');
+    if (!token) {throw new Error('GitHub token not configured');}
     
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
         method: 'POST',
@@ -549,7 +551,7 @@ async function postGitHubPRComment(owner: string, repo: string, prNumber: string
         },
         body: JSON.stringify({ body: comment })
     });
-    if (!response.ok) throw new Error(`Failed to post comment: ${response.status}`);
+    if (!response.ok) {throw new Error(`Failed to post comment: ${response.status}`);}
 }
 
 function createOrShowAIPanel(): vscode.WebviewPanel {
@@ -650,7 +652,7 @@ async function handleImageInput(imageData: string, prompt: string, panel: vscode
 
 async function executeTerminalCommand(command: string, panel: vscode.WebviewPanel) {
     let terminal = vscode.window.terminals.find(t => t.name === 'AI Assistant');
-    if (!terminal) terminal = vscode.window.createTerminal('AI Assistant');
+    if (!terminal) {terminal = vscode.window.createTerminal('AI Assistant');}
     terminal.show();
     terminal.sendText(command);
     panel.webview.postMessage({ command: 'appendSystemMessage', message: `🖥️ Executed: ${command}` });
@@ -720,7 +722,7 @@ async function openFile(filePath: string, panel: vscode.WebviewPanel) {
 
 async function processFileReferences(prompt: string, panel: vscode.WebviewPanel): Promise<string> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) return prompt;
+    if (!workspaceRoot) {return prompt;}
     
     const fileRefRegex = /@([\w\/\.\-\\]+)/g;
     let match;
@@ -799,12 +801,12 @@ function processSlashCommands(input: string, panel: vscode.WebviewPanel): string
     }
     if (trimmed.startsWith('/terminal ')) {
         const cmd = input.replace('/terminal', '').trim();
-        if (cmd) executeTerminalCommand(cmd, panel);
+        if (cmd) {executeTerminalCommand(cmd, panel);}
         return null;
     }
     if (trimmed.startsWith('/search ')) {
         const query = input.replace('/search', '').trim();
-        if (query) searchWorkspace(query, panel);
+        if (query) {searchWorkspace(query, panel);}
         return null;
     }
     
@@ -816,7 +818,7 @@ function processSlashCommands(input: string, panel: vscode.WebviewPanel): string
 
 async function handlePromptStreaming(prompt: string, panel: vscode.WebviewPanel) {
     const processed = processSlashCommands(prompt, panel);
-    if (processed === null) return;
+    if (processed === null) {return;}
     
     const referencedPrompt = await processFileReferences(processed, panel);
     
@@ -851,7 +853,7 @@ Respond with markdown. Show complete modified code blocks.`;
             body: JSON.stringify({ prompt: fullPrompt, task_type: 'chat' })
         });
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {throw new Error(`HTTP ${response.status}`);}
         
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
@@ -859,7 +861,7 @@ Respond with markdown. Show complete modified code blocks.`;
 
         while (reader) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {break;}
             const chunk = decoder.decode(value);
             accumulated += chunk;
             panel.webview.postMessage({ command: 'streamChunk', chunk: chunk, full: accumulated });
@@ -892,12 +894,13 @@ function applyCodeToEditor(code: string) {
         return;
     }
     
+    const selection = currentSelection;
     const codeMatch = code.match(/```[\w]*\n([\s\S]*?)```/);
     const finalCode = codeMatch ? codeMatch[1] : code;
     
     editor.edit(editBuilder => {
-        const startLine = currentSelection.lineStart - 1;
-        const endLine = currentSelection.lineEnd - 1;
+        const startLine = selection.lineStart - 1;
+        const endLine = selection.lineEnd - 1;
         
         if (endLine >= editor.document.lineCount) {
             vscode.window.showErrorMessage('Selected line range is outside document bounds');
@@ -979,7 +982,7 @@ async function showMultiFilePreview(plan: MultiFileEdit) {
 }
 
 async function rollbackMultiFileEdit() {
-    if (!lastMultiFileEdit) return;
+    if (!lastMultiFileEdit) {return;}
     for (const change of lastMultiFileEdit.changes) {
         try {
             const uri = vscode.Uri.file(change.filePath);
