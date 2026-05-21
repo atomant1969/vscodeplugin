@@ -1,0 +1,140 @@
+{
+    "name": "ai-code-assistant",
+    "displayName": "AI Code Assistant",
+    "description": "AI-powered code fixing and generation using local server",
+    "version": "0.0.1",
+    "publisher": "ai-assistant",
+    "engines": {
+        "vscode": "^1.120.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:ai-code-assistant.addToAI",
+        "onCommand:ai-code-assistant.addFileToAI",
+        "onCommand:ai-code-assistant.clearHistory",
+        "onCommand:ai-code-assistant.reviewPR",
+        "onCommand:ai-code-assistant.postPRComment",
+        "onCommand:ai-code-assistant.configureSettings",
+        "onCommand:ai-code-assistant.multiFileEdit",
+        "onCommand:ai-code-assistant.rollbackEdit",
+        "onCommand:ai-code-assistant.exportHistory",
+        "onCommand:ai-code-assistant.importHistory",
+        "onCommand:ai-code-assistant.reconnect"
+    ],
+    "main": "./out/extension.js",
+    "bin": {
+        "ai-assistant": "./bin/ai-assistant"
+    },
+    "contributes": {
+        "commands": [
+            {
+                "command": "ai-code-assistant.addToAI",
+                "title": "Add to AI Assistant"
+            },
+            {
+                "command": "ai-code-assistant.addFileToAI",
+                "title": "AI: Add File to Chat"
+            },
+            {
+                "command": "ai-code-assistant.clearHistory",
+                "title": "AI: Clear Chat History"
+            },
+            {
+                "command": "ai-code-assistant.reviewPR",
+                "title": "AI: Review Pull Request"
+            },
+            {
+                "command": "ai-code-assistant.postPRComment",
+                "title": "AI: Post PR Comment"
+            },
+            {
+                "command": "ai-code-assistant.configureSettings",
+                "title": "AI: Configure Settings"
+            },
+            {
+                "command": "ai-code-assistant.multiFileEdit",
+                "title": "AI: Multi-File Edit"
+            },
+            {
+                "command": "ai-code-assistant.rollbackEdit",
+                "title": "AI: Rollback Last Edit"
+            },
+            {
+                "command": "ai-code-assistant.exportHistory",
+                "title": "AI: Export Chat History"
+            },
+            {
+                "command": "ai-code-assistant.importHistory",
+                "title": "AI: Import Chat History"
+            },
+            {
+                "command": "ai-code-assistant.reconnect",
+                "title": "AI: Reconnect to Server"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "ai-code-assistant.addToAI",
+                    "group": "ai_assistant@1",
+                    "when": "editorHasSelection"
+                }
+            ],
+            "explorer/context": [
+                {
+                    "command": "ai-code-assistant.addFileToAI",
+                    "group": "ai_assistant@1"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "AI Assistant",
+            "properties": {
+                "ai-assistant.serverUrl": {
+                    "type": "string",
+                    "default": "http://192.168.1.13:8001",
+                    "description": "URL of the AI server"
+                },
+                "ai-assistant.githubToken": {
+                    "type": "string",
+                    "default": "",
+                    "description": "GitHub Personal Access Token for PR review"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "npm run check-types && npm run lint && node esbuild.js",
+        "watch": "npm-run-all -p watch:*",
+        "watch:esbuild": "node esbuild.js --watch",
+        "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+        "package": "npm run check-types && npm run lint && node esbuild.js --production",
+        "compile-tests": "tsc -p . --outDir out",
+        "watch-tests": "tsc -p . -w --outDir out",
+        "pretest": "npm run compile-tests && npm run compile && npm run lint",
+        "check-types": "tsc --noEmit",
+        "lint": "eslint src",
+        "test": "vscode-test",
+        "test-ext": "code --extensionDevelopmentPath=${PWD} --new-window",
+        "cli": "node cli/ai-assistant.js",
+        "cli:stream": "AI_STREAMING=true node cli/ai-assistant.js"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^22.19.19",
+        "@types/vscode": "^1.120.0",
+        "@vscode/test-cli": "^0.0.11",
+        "@vscode/test-electron": "^2.5.2",
+        "esbuild": "^0.27.3",
+        "eslint": "^9.39.3",
+        "npm-run-all": "^1.4.0",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.56.1"
+    },
+    "dependencies": {
+        "axios": "^1.16.1"
+    }
+}
