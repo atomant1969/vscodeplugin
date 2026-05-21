@@ -2,6 +2,8 @@ const esbuild = require('esbuild');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * @type {import('esbuild').Plugin}
@@ -51,3 +53,9 @@ main().catch(e => {
     console.error(e);
     process.exit(1);
 });
+
+// After building, copy the HTML file
+fs.copyFileSync(
+    path.join(__dirname, 'src', 'webview.html'),
+    path.join(__dirname, 'out', 'webview.html')
+);

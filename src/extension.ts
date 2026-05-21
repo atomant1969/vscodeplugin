@@ -5,7 +5,7 @@ import * as fs from 'fs';
 
 // Types
 interface ChatMessage {
-        role: 'user' | 'assistant';
+    role: 'user' | 'assistant';
     content: string;
     timestamp: number;
 }
@@ -58,7 +58,7 @@ function getServerUrl(): string {
 export function activate(extContext: vscode.ExtensionContext) {
     extensionContext = extContext;
     console.log('AI Code Assistant activated');
-    
+
     loadSettings();
     loadHistory();
     registerCommands();
@@ -66,6 +66,14 @@ export function activate(extContext: vscode.ExtensionContext) {
     registerNotebookSupport();
     setupPreCommitHook();
     createStatusBarItem();
+
+    // Add button to editor title bar (top right of each editor)
+    const aiTitleButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 1);
+    aiTitleButton.text = "$(hubot) AI";
+    aiTitleButton.tooltip = "Open AI Assistant (ask anything)";
+    aiTitleButton.command = "ai-code-assistant.openPanel";
+    aiTitleButton.show();
+    extensionContext.subscriptions.push(aiTitleButton);
 }
 
 function loadSettings() {
@@ -141,7 +149,7 @@ function createStatusBarItem() {
 }
 
 function registerCommands() {
-    if (!extensionContext) {return;}
+    if (!extensionContext) { return; }
 
     // Add selected code to AI
     const addToAI = vscode.commands.registerCommand('ai-code-assistant.addToAI', () => {
@@ -181,25 +189,35 @@ function registerCommands() {
         }
     });
 
+    // Open AI Assistant without code selection (text-only chat)
+    const openPanel = vscode.commands.registerCommand('ai-code-assistant.openPanel', () => {
+        currentSelection = null;
+        const panel = createOrShowAIPanel();
+        panel.webview.postMessage({
+            command: 'appendSystemMessage',
+            message: '💬 No code selected. Type your question or request below.'
+        });
+    });
+
     // Add entire file to AI
     const addFileToAI = vscode.commands.registerCommand('ai-code-assistant.addFileToAI', async (uri: vscode.Uri) => {
-        if (!uri) {return;}
-        
+        if (!uri) { return; }
+
         try {
             const fileContent = await vscode.workspace.fs.readFile(uri);
             const content = Buffer.from(fileContent).toString('utf8');
             const fileName = uri.path.split('/').pop() || 'unknown';
             const lines = content.split('\n').length;
-            
+
             currentSelection = {
                 code: content,
                 lineStart: 1,
                 lineEnd: lines,
                 filePath: uri.fsPath
             };
-            
+
             const panel = createOrShowAIPanel();
-            
+
             if (currentSelection) {
                 panel.webview.postMessage({
                     command: 'selectionLoaded',
@@ -212,7 +230,7 @@ function registerCommands() {
                     truncated: content.length > 10000
                 });
             }
-            
+
             panel.webview.postMessage({
                 command: 'appendSystemMessage',
                 message: `📄 Full file '${fileName}' loaded (${lines} lines)`
@@ -238,27 +256,27 @@ function registerCommands() {
             prompt: 'Enter GitHub PR URL',
             placeHolder: 'https://github.com/owner/repo/pull/123'
         });
-        
-        if (!prUrl) {return;}
-        
+
+        if (!prUrl) { return; }
+
         vscode.window.showInformationMessage('🔍 Analyzing pull request...');
-        
+
         try {
             const match = prUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
-            if (!match) {throw new Error('Invalid GitHub PR URL');}
-            
+            if (!match) { throw new Error('Invalid GitHub PR URL'); }
+
             const [, owner, repo, prNumber] = match;
             const diff = await fetchGitHubPRDiff(owner, repo, prNumber);
-            
+
             currentSelection = {
                 code: diff,
                 lineStart: 1,
                 lineEnd: diff.split('\n').length,
                 filePath: 'pull-request.diff'
             };
-            
+
             const panel = createOrShowAIPanel();
-            
+
             if (currentSelection) {
                 panel.webview.postMessage({
                     command: 'selectionLoaded',
@@ -269,16 +287,16 @@ function registerCommands() {
                     isFullFile: true
                 });
             }
-            
+
             const reviewPrompt = `Please review this pull request diff. Provide feedback on:
 1. Code quality and style
 2. Potential bugs
 3. Performance concerns
 4. Security issues
 5. Specific improvement suggestions`;
-            
+
             await handlePromptStreaming(reviewPrompt, panel);
-            
+
         } catch (error: any) {
             vscode.window.showErrorMessage(`PR review failed: ${error.message}`);
         }
@@ -290,20 +308,20 @@ function registerCommands() {
             prompt: 'Enter GitHub PR URL',
             placeHolder: 'https://github.com/owner/repo/pull/123'
         });
-        
-        if (!prUrl) {return;}
-        
+
+        if (!prUrl) { return; }
+
         const comment = await vscode.window.showInputBox({
             prompt: 'Enter your review comment',
             placeHolder: 'Comment to post on PR'
         });
-        
-        if (!comment) {return;}
-        
+
+        if (!comment) { return; }
+
         try {
             const match = prUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
-            if (!match) {throw new Error('Invalid URL');}
-            
+            if (!match) { throw new Error('Invalid URL'); }
+
             const [, owner, repo, prNumber] = match;
             await postGitHubPRComment(owner, repo, prNumber, comment);
             vscode.window.showInformationMessage('Comment posted to PR');
@@ -319,7 +337,7 @@ function registerCommands() {
             value: settings.customInstructions,
             placeHolder: 'e.g., "Always use TypeScript, prefer async/await"'
         });
-        
+
         if (customInstructions !== undefined) {
             settings.customInstructions = customInstructions;
             saveSettings();
@@ -337,7 +355,7 @@ function registerCommands() {
 
         const selection = editor.selection;
         const selectedText = editor.document.getText(selection);
-        
+
         if (!selectedText) {
             vscode.window.showErrorMessage('Please select code to refactor across files');
             return;
@@ -348,7 +366,7 @@ function registerCommands() {
             placeHolder: 'Move this function to utils.js and update all imports'
         });
 
-        if (!prompt) {return;}
+        if (!prompt) { return; }
 
         vscode.window.showInformationMessage('🔍 Analyzing for multi-file changes...');
 
@@ -365,11 +383,11 @@ Output format: {"summary": "...", "changes": [{"filePath": "...", "action": "rep
             });
 
             const jsonMatch = response.data.result.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {throw new Error('Could not parse AI response');}
-            
+            if (!jsonMatch) { throw new Error('Could not parse AI response'); }
+
             const plan: MultiFileEdit = JSON.parse(jsonMatch[0]);
             await showMultiFilePreview(plan);
-            
+
         } catch (error: any) {
             vscode.window.showErrorMessage(`Multi-file edit failed: ${error.message}`);
         }
@@ -392,15 +410,15 @@ Output format: {"summary": "...", "changes": [{"filePath": "...", "action": "rep
             vscode.window.showWarningMessage('No chat history to export');
             return;
         }
-        
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const defaultFileName = `ai-chat-history-${timestamp}.json`;
-        
+
         const uri = await vscode.window.showSaveDialog({
             defaultUri: vscode.Uri.file(defaultFileName),
             filters: { 'JSON files': ['json'] }
         });
-        
+
         if (uri) {
             const data = JSON.stringify(chatHistory, null, 2);
             await vscode.workspace.fs.writeFile(uri, Buffer.from(data, 'utf8'));
@@ -414,12 +432,12 @@ Output format: {"summary": "...", "changes": [{"filePath": "...", "action": "rep
             canSelectMany: false,
             filters: { 'JSON files': ['json'] }
         });
-        
+
         if (uris && uris[0]) {
             try {
                 const content = await vscode.workspace.fs.readFile(uris[0]);
                 const imported = JSON.parse(Buffer.from(content).toString('utf8'));
-                
+
                 if (Array.isArray(imported)) {
                     chatHistory = [...chatHistory, ...imported];
                     saveHistory();
@@ -450,7 +468,7 @@ Output format: {"summary": "...", "changes": [{"filePath": "...", "action": "rep
     });
 
     extensionContext.subscriptions.push(
-        addToAI, addFileToAI, clearHistory, reviewPR, postPRComment,
+        addToAI, openPanel, addFileToAI, clearHistory, reviewPR, postPRComment,
         configureSettings, multiFileEdit, rollbackEdit, exportHistory,
         importHistory, reconnect
     );
@@ -462,22 +480,22 @@ function registerCodeActions() {
         {
             provideCodeActions(document, range) {
                 const code = document.getText(range);
-                if (!code || code.length < 5) {return [];}
-                
+                if (!code || code.length < 5) { return []; }
+
                 const actions = [];
-                
+
                 const explainAction = new vscode.CodeAction('🤖 AI: Explain this code', vscode.CodeActionKind.QuickFix);
                 explainAction.command = { command: 'ai-code-assistant.addToAI', title: 'Explain Code' };
                 actions.push(explainAction);
-                
+
                 const fixAction = new vscode.CodeAction('🔧 AI: Fix this code', vscode.CodeActionKind.QuickFix);
                 fixAction.command = { command: 'ai-code-assistant.addToAI', title: 'Fix Code' };
                 actions.push(fixAction);
-                
+
                 const testAction = new vscode.CodeAction('🧪 AI: Generate test', vscode.CodeActionKind.QuickFix);
                 testAction.command = { command: 'ai-code-assistant.addToAI', title: 'Generate Test' };
                 actions.push(testAction);
-                
+
                 return actions;
             }
         }
@@ -491,7 +509,7 @@ function registerNotebookSupport() {
             'Open AI Assistant for this notebook?',
             'Yes', 'No'
         );
-        
+
         if (shouldAssist === 'Yes') {
             const content = document.getCells().map(cell => cell.document.getText()).join('\n\n');
             currentSelection = {
@@ -508,8 +526,8 @@ function registerNotebookSupport() {
 
 function setupPreCommitHook() {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceFolder) {return;}
-    
+    if (!workspaceFolder) { return; }
+
     const hookPath = path.join(workspaceFolder, '.git', 'hooks', 'pre-commit');
     if (fs.existsSync(path.dirname(hookPath)) && !fs.existsSync(hookPath)) {
         const hookContent = `#!/bin/bash
@@ -523,7 +541,7 @@ if git diff --cached | grep -E "(password|secret|api_key|token)" ; then
     fi
 fi
 echo "Pre-commit checks passed"`;
-        
+
         fs.writeFileSync(hookPath, hookContent);
         fs.chmodSync(hookPath, 0o755);
     }
@@ -532,17 +550,17 @@ echo "Pre-commit checks passed"`;
 async function fetchGitHubPRDiff(owner: string, repo: string, prNumber: string): Promise<string> {
     const token = vscode.workspace.getConfiguration('ai-assistant').get<string>('githubToken');
     const headers: Record<string, string> = { 'Accept': 'application/vnd.github.v3.diff' };
-    if (token) {headers['Authorization'] = `Bearer ${token}`;}
-    
+    if (token) { headers['Authorization'] = `Bearer ${token}`; }
+
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, { headers });
-    if (!response.ok) {throw new Error(`GitHub API error: ${response.status}`);}
+    if (!response.ok) { throw new Error(`GitHub API error: ${response.status}`); }
     return await response.text();
 }
 
 async function postGitHubPRComment(owner: string, repo: string, prNumber: string, comment: string): Promise<void> {
     const token = vscode.workspace.getConfiguration('ai-assistant').get<string>('githubToken');
-    if (!token) {throw new Error('GitHub token not configured');}
-    
+    if (!token) { throw new Error('GitHub token not configured'); }
+
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
         method: 'POST',
         headers: {
@@ -551,7 +569,7 @@ async function postGitHubPRComment(owner: string, repo: string, prNumber: string
         },
         body: JSON.stringify({ body: comment })
     });
-    if (!response.ok) {throw new Error(`Failed to post comment: ${response.status}`);}
+    if (!response.ok) { throw new Error(`Failed to post comment: ${response.status}`); }
 }
 
 function createOrShowAIPanel(): vscode.WebviewPanel {
@@ -568,11 +586,41 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
     );
 
     panel.webview.html = getWebviewContent();
-    
+
     panel.onDidDispose(() => { currentPanel = null; }, null, extensionContext!.subscriptions);
 
     panel.webview.onDidReceiveMessage(async (message) => {
         switch (message.command) {
+            case 'getInitialHistory':
+                panel.webview.postMessage({
+                    command: 'updateHistory',
+                    history: chatHistory.slice(-20).map(msg => ({
+                        role: msg.role,
+                        content: msg.content.substring(0, 200),
+                        timestamp: new Date(msg.timestamp).toLocaleTimeString()
+                    }))
+                });
+                break;
+            case 'deleteHistoryEntry':
+                console.log('Deleting history entry at index:', message.index);
+                const idx = message.index;
+                if (idx >= 0 && idx < chatHistory.length) {
+                    chatHistory.splice(idx, 1);
+                    saveHistory();
+                    // Refresh the history display
+                    if (currentPanel) {
+                        currentPanel.webview.postMessage({
+                            command: 'updateHistory',
+                            history: chatHistory.slice(-20).map(msg => ({
+                                role: msg.role,
+                                content: msg.content.substring(0, 200),
+                                timestamp: new Date(msg.timestamp).toLocaleTimeString()
+                            }))
+                        });
+                    }
+                    vscode.window.showInformationMessage('Message deleted');
+                }
+                break;
             case 'sendPrompt':
                 await handlePromptStreaming(message.prompt, panel);
                 break;
@@ -632,15 +680,15 @@ async function handleImageInput(imageData: string, prompt: string, panel: vscode
     }
 
     panel.webview.postMessage({ command: 'thinking', thinking: true });
-    
+
     const fullPrompt = `[Image attached] User instruction: ${prompt}\n\nCode context:\n${currentSelection.code}`;
-    
+
     try {
         const response = await axios.post(`${getServerUrl()}/process`, {
             prompt: fullPrompt,
             task_type: 'chat'
         });
-        
+
         addToHistory('assistant', response.data.result);
         panel.webview.postMessage({ command: 'response', response: response.data.result });
     } catch (error: any) {
@@ -652,7 +700,7 @@ async function handleImageInput(imageData: string, prompt: string, panel: vscode
 
 async function executeTerminalCommand(command: string, panel: vscode.WebviewPanel) {
     let terminal = vscode.window.terminals.find(t => t.name === 'AI Assistant');
-    if (!terminal) {terminal = vscode.window.createTerminal('AI Assistant');}
+    if (!terminal) { terminal = vscode.window.createTerminal('AI Assistant'); }
     terminal.show();
     terminal.sendText(command);
     panel.webview.postMessage({ command: 'appendSystemMessage', message: `🖥️ Executed: ${command}` });
@@ -660,16 +708,16 @@ async function executeTerminalCommand(command: string, panel: vscode.WebviewPane
 
 async function searchWorkspace(query: string, panel: vscode.WebviewPanel) {
     panel.webview.postMessage({ command: 'thinking', thinking: true });
-    
+
     try {
         const files = await vscode.workspace.findFiles(
             '**/*.{js,ts,jsx,tsx,py,go,rs,java,cpp,c,h,html,css,json,md}',
             '**/node_modules/**,**/.git/**'
         );
-        
+
         const results: { path: string; name: string; line?: number; preview?: string }[] = [];
         const searchQuery = query.toLowerCase();
-        
+
         for (const file of files.slice(0, 30)) {
             try {
                 const content = await vscode.workspace.fs.readFile(file);
@@ -688,7 +736,7 @@ async function searchWorkspace(query: string, panel: vscode.WebviewPanel) {
                 }
             } catch { }
         }
-        
+
         panel.webview.postMessage({
             command: 'searchResults',
             query: query,
@@ -707,7 +755,7 @@ async function openFile(filePath: string, panel: vscode.WebviewPanel) {
         const uri = vscode.Uri.file(filePath);
         const doc = await vscode.workspace.openTextDocument(uri);
         const editor = await vscode.window.showTextDocument(doc);
-        
+
         const lineMatch = filePath.match(/:(\d+)$/);
         if (lineMatch) {
             const line = parseInt(lineMatch[1]) - 1;
@@ -722,16 +770,16 @@ async function openFile(filePath: string, panel: vscode.WebviewPanel) {
 
 async function processFileReferences(prompt: string, panel: vscode.WebviewPanel): Promise<string> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {return prompt;}
-    
+    if (!workspaceRoot) { return prompt; }
+
     const fileRefRegex = /@([\w\/\.\-\\]+)/g;
     let match;
     let processedPrompt = prompt;
-    
+
     while ((match = fileRefRegex.exec(prompt)) !== null) {
         const filePath = match[1];
         const fullPath = path.isAbsolute(filePath) ? filePath : path.join(workspaceRoot, filePath);
-        
+
         try {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(fullPath));
             const fileContent = Buffer.from(content).toString('utf8');
@@ -746,7 +794,7 @@ async function processFileReferences(prompt: string, panel: vscode.WebviewPanel)
 
 function processSlashCommands(input: string, panel: vscode.WebviewPanel): string | null {
     const trimmed = input.trim().toLowerCase();
-    
+
     if (trimmed === '/help') {
         return `📋 **Slash Commands:**
 /help - This help
@@ -763,7 +811,7 @@ function processSlashCommands(input: string, panel: vscode.WebviewPanel): string
 /settings - Configure settings
 /multi - Multi-file edit`;
     }
-    
+
     if (trimmed === '/clear') {
         vscode.commands.executeCommand('ai-code-assistant.clearHistory');
         return null;
@@ -801,15 +849,15 @@ function processSlashCommands(input: string, panel: vscode.WebviewPanel): string
     }
     if (trimmed.startsWith('/terminal ')) {
         const cmd = input.replace('/terminal', '').trim();
-        if (cmd) {executeTerminalCommand(cmd, panel);}
+        if (cmd) { executeTerminalCommand(cmd, panel); }
         return null;
     }
     if (trimmed.startsWith('/search ')) {
         const query = input.replace('/search', '').trim();
-        if (query) {searchWorkspace(query, panel);}
+        if (query) { searchWorkspace(query, panel); }
         return null;
     }
-    
+
     if (settings.customInstructions) {
         return `${settings.customInstructions}\n\n${input}`;
     }
@@ -818,33 +866,30 @@ function processSlashCommands(input: string, panel: vscode.WebviewPanel): string
 
 async function handlePromptStreaming(prompt: string, panel: vscode.WebviewPanel) {
     const processed = processSlashCommands(prompt, panel);
-    if (processed === null) {return;}
-    
+    if (processed === null) { return; }
+
     const referencedPrompt = await processFileReferences(processed, panel);
-    
-    // CRITICAL: Null check for currentSelection
-    if (!currentSelection) {
-        panel.webview.postMessage({ 
-            command: 'error', 
-            error: 'No code selected. Please select some code first.' 
-        });
-        return;
-    }
-    
+
     addToHistory('user', referencedPrompt);
     panel.webview.postMessage({ command: 'thinking', thinking: true });
     panel.webview.postMessage({ command: 'clearResponse', clear: true });
 
-    const fullPrompt = `Context: ${currentSelection.lineStart === 1 && currentSelection.lineEnd === currentSelection.code.split('\n').length ? 'Full file' : `Lines ${currentSelection.lineStart}-${currentSelection.lineEnd}`} from ${currentSelection.filePath.split(/[\\/]/).pop()}
+    let fullPrompt: string;
+
+    if (currentSelection) {
+        fullPrompt = `Context: ${currentSelection.lineStart === 1 && currentSelection.lineEnd === currentSelection.code.split('\n').length ? 'Full file' : `Lines ${currentSelection.lineStart}-${currentSelection.lineEnd}`} from ${currentSelection.filePath.split(/[\\/]/).pop()}
 
 Code:
 \`\`\`
 ${currentSelection.code}
 \`\`\`
 
-Instruction: ${referencedPrompt}
+User Instruction: ${referencedPrompt}
 
 Respond with markdown. Show complete modified code blocks.`;
+    } else {
+        fullPrompt = referencedPrompt;
+    }
 
     try {
         const response = await fetch(`${getServerUrl()}/process/stream`, {
@@ -853,67 +898,66 @@ Respond with markdown. Show complete modified code blocks.`;
             body: JSON.stringify({ prompt: fullPrompt, task_type: 'chat' })
         });
 
-        if (!response.ok) {throw new Error(`HTTP ${response.status}`);}
-        
+        if (!response.ok) { throw new Error(`HTTP ${response.status}`); }
+
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let accumulated = '';
 
         while (reader) {
             const { done, value } = await reader.read();
-            if (done) {break;}
+            if (done) { break; }
             const chunk = decoder.decode(value);
             accumulated += chunk;
             panel.webview.postMessage({ command: 'streamChunk', chunk: chunk, full: accumulated });
         }
-        
+
         addToHistory('assistant', accumulated);
         panel.webview.postMessage({ command: 'streamComplete', response: accumulated });
-        
+
     } catch (error: any) {
-        panel.webview.postMessage({ 
-            command: 'errorWithRetry', 
-            error: error.message, 
-            originalPrompt: prompt 
+        panel.webview.postMessage({
+            command: 'errorWithRetry',
+            error: error.message,
+            originalPrompt: prompt
         });
     } finally {
         panel.webview.postMessage({ command: 'thinking', thinking: false });
     }
 }
 
-function applyCodeToEditor(code: string) {
+function applyCodeToEditor(content: string) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-        vscode.window.showErrorMessage('No active editor');
+        vscode.window.showErrorMessage('No active editor. Please open a file first.');
         return;
     }
-    
-    // CRITICAL: Null check for currentSelection
-    if (!currentSelection) {
-        vscode.window.showErrorMessage('No code selected to apply changes to');
-        return;
+
+    // Try to extract code from markdown code blocks
+    const codeMatch = content.match(/```[\w]*\n([\s\S]*?)```/);
+
+    // If code block found, use that; otherwise use the entire response
+    let finalContent = codeMatch ? codeMatch[1] : content;
+
+    // Optional: Clean up markdown formatting for text documents
+    if (!codeMatch && (editor.document.languageId === 'markdown' || editor.document.fileName.endsWith('.md'))) {
+        // For markdown files, keep the markdown formatting
+        finalContent = content;
     }
-    
-    const selection = currentSelection;
-    const codeMatch = code.match(/```[\w]*\n([\s\S]*?)```/);
-    const finalCode = codeMatch ? codeMatch[1] : code;
-    
+
+    const selection = editor.selection;
+
     editor.edit(editBuilder => {
-        const startLine = selection.lineStart - 1;
-        const endLine = selection.lineEnd - 1;
-        
-        if (endLine >= editor.document.lineCount) {
-            vscode.window.showErrorMessage('Selected line range is outside document bounds');
-            return;
+        if (selection && !selection.isEmpty) {
+            editBuilder.replace(selection, finalContent);
+        } else {
+            editBuilder.insert(selection.active, finalContent);
         }
-        
-        const range = new vscode.Range(
-            startLine, 0,
-            endLine, editor.document.lineAt(endLine).text.length
-        );
-        editBuilder.replace(range, finalCode);
+    }).then(success => {
+        if (success) {
+            vscode.window.showInformationMessage('Content applied to editor');
+        }
     });
-    vscode.window.showInformationMessage('Code applied to editor');
 }
 
 async function showMultiFilePreview(plan: MultiFileEdit) {
@@ -922,9 +966,9 @@ async function showMultiFilePreview(plan: MultiFileEdit) {
         vscode.window.showErrorMessage('No workspace folder open');
         return;
     }
-    
+
     const resolvedChanges: FileChange[] = [];
-    
+
     for (const change of plan.changes) {
         const fullPath = path.isAbsolute(change.filePath) ? change.filePath : path.join(workspaceRoot, change.filePath);
         let originalContent = '';
@@ -936,9 +980,9 @@ async function showMultiFilePreview(plan: MultiFileEdit) {
         }
         resolvedChanges.push({ ...change, filePath: fullPath, originalContent });
     }
-    
+
     const panel = vscode.window.createWebviewPanel('multiFilePreview', 'Multi-File Edit Preview', vscode.ViewColumn.Beside, { enableScripts: true });
-    
+
     panel.webview.html = `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
@@ -961,7 +1005,7 @@ async function showMultiFilePreview(plan: MultiFileEdit) {
     </script>
 </body>
 </html>`;
-    
+
     panel.webview.onDidReceiveMessage(async (message) => {
         if (message.command === 'applyMultiFile') {
             lastMultiFileEdit = { summary: plan.summary, changes: message.changes };
@@ -982,7 +1026,7 @@ async function showMultiFilePreview(plan: MultiFileEdit) {
 }
 
 async function rollbackMultiFileEdit() {
-    if (!lastMultiFileEdit) {return;}
+    if (!lastMultiFileEdit) { return; }
     for (const change of lastMultiFileEdit.changes) {
         try {
             const uri = vscode.Uri.file(change.filePath);
@@ -992,259 +1036,13 @@ async function rollbackMultiFileEdit() {
 }
 
 function getWebviewContent(): string {
-    return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { padding: 12px; font-family: var(--vscode-font-family); font-size: 13px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }
-        .selection-info { background: var(--vscode-editor-selectionBackground); padding: 8px; border-radius: 4px; margin-bottom: 12px; font-size: 12px; }
-        .selection-info code { display: block; white-space: pre-wrap; font-size: 11px; margin-top: 8px; padding: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 3px; max-height: 150px; overflow: auto; }
-        .history-section { margin-bottom: 16px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 8px; }
-        .history-header { font-weight: bold; margin-bottom: 8px; cursor: pointer; }
-        .history-messages { max-height: 120px; overflow-y: auto; margin-bottom: 12px; font-size: 11px; }
-        .history-message { padding: 4px; margin-bottom: 4px; border-radius: 4px; }
-        .history-message.user { background: var(--vscode-editor-selectionBackground); }
-        .history-message.assistant { background: var(--vscode-editor-inactiveSelectionBackground); }
-        .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-        .toolbar button { padding: 4px 8px; font-size: 11px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; }
-        .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
-        .search-area { display: flex; gap: 8px; margin-bottom: 12px; }
-        .search-area input { flex: 1; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; }
-        textarea { width: 100%; padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; resize: vertical; font-family: inherit; }
-        button { margin-top: 8px; padding: 6px 12px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; }
-        .response-content { background: var(--vscode-editor-inactiveSelectionBackground); padding: 10px; border-radius: 4px; margin-top: 8px; max-height: 350px; overflow-y: auto; font-size: 12px; }
-        .response-content pre { background: var(--vscode-editor-background); padding: 8px; border-radius: 4px; overflow-x: auto; }
-        .code-actions { margin-top: 8px; display: flex; gap: 8px; }
-        .thinking { display: flex; align-items: center; gap: 8px; color: var(--vscode-descriptionForeground); padding: 8px; }
-        .loading-spinner { width: 16px; height: 16px; border: 2px solid var(--vscode-foreground); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .error { color: var(--vscode-errorForeground); margin-top: 8px; padding: 8px; background: var(--vscode-inputValidation-errorBackground); border-radius: 4px; }
-        .streaming-cursor { display: inline-block; width: 2px; height: 14px; background: var(--vscode-foreground); animation: blink 1s step-end infinite; vertical-align: middle; margin-left: 2px; }
-        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
-        kbd { background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 3px; padding: 2px 6px; font-family: monospace; font-size: 10px; }
-        details { margin-bottom: 12px; }
-        summary { cursor: pointer; color: var(--vscode-textLink-foreground); font-size: 11px; }
-    </style>
-</head>
-<body>
-    <div id="selectionInfo" class="selection-info" style="display: none;">
-        <strong>📌 Selected</strong>
-        <div id="fileInfo"></div>
-        <code id="selectedCode"></code>
-    </div>
-
-    <details>
-        <summary>⌨️ Keyboard Shortcuts</summary>
-        <div style="padding: 8px; font-size: 11px;">
-            <div><kbd>Ctrl+Shift+F</kbd> - Fix code</div>
-            <div><kbd>Ctrl+Shift+G</kbd> - Generate code</div>
-            <div><kbd>Ctrl+Shift+E</kbd> - Explain code</div>
-            <div><kbd>Ctrl+Shift+T</kbd> - Generate test</div>
-            <div><kbd>Ctrl+Enter</kbd> - Send prompt</div>
-            <div><kbd>/help</kbd> - All slash commands</div>
-        </div>
-    </details>
-
-    <div class="history-section">
-        <div class="history-header" onclick="toggleHistory()">📜 History ▼</div>
-        <div id="historyMessages" class="history-messages"></div>
-    </div>
-
-    <div class="toolbar">
-        <button id="voiceBtn">🎤 Voice</button>
-        <button id="imageBtn">🖼️ Image</button>
-        <button id="settingsBtn">⚙️ Settings</button>
-        <button id="exportBtn">💾 Export</button>
-        <button id="importBtn">📂 Import</button>
-    </div>
-
-    <div class="search-area">
-        <input type="text" id="searchInput" placeholder="🔍 Search workspace...">
-        <button id="searchBtn">Search</button>
-    </div>
-
-    <div id="searchResults" style="display: none;"></div>
-    <div id="systemMessages"></div>
-
-    <textarea id="promptInput" rows="3" placeholder="Ask AI... Type /help for commands"></textarea>
-    <button id="sendBtn">Send</button>
-    <div style="font-size: 10px; margin-top: 4px;">💡 /help, /voice, /image, @file.ts, Ctrl+Enter to send</div>
-
-    <div id="responseArea" style="display: none;">
-        <div class="response-header">🤖 Response <span id="streamingIndicator" class="streaming-cursor"></span></div>
-        <div class="response-content" id="responseContent"></div>
-        <div class="code-actions" id="codeActions" style="display: none;">
-            <button id="applyBtn">Apply</button>
-            <button id="copyBtn">Copy</button>
-        </div>
-    </div>
-
-    <div id="thinking" class="thinking" style="display: none;">
-        <div class="loading-spinner"></div>
-        <span>AI is thinking...</span>
-    </div>
-    <div id="errorMsg" class="error" style="display: none;"></div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-        let currentResponse = '';
-        let recognition = null;
-
-        if ('webkitSpeechRecognition' in window) {
-            recognition = new webkitSpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.onresult = (e) => {
-                const text = e.results[0][0].transcript;
-                document.getElementById('promptInput').value = text;
-                vscode.postMessage({ command: 'sendVoiceInput', text: text });
-            };
-        }
-
-        function toggleHistory() {
-            const msgs = document.getElementById('historyMessages');
-            const header = document.querySelector('.history-header');
-            if (msgs.style.display === 'none') {
-                msgs.style.display = 'block';
-                header.innerHTML = '📜 History ▼';
-            } else {
-                msgs.style.display = 'none';
-                header.innerHTML = '📜 History ▶';
-            }
-        }
-
-        document.getElementById('voiceBtn').onclick = () => {
-            if (recognition) recognition.start();
-            else showError('Voice not supported');
-        };
-
-        document.getElementById('imageBtn').onclick = () => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const prompt = document.getElementById('promptInput').value || 'Analyze this image';
-                    vscode.postMessage({ command: 'sendImageInput', imageData: ev.target.result, prompt: prompt });
-                };
-                reader.readAsDataURL(file);
-            };
-            input.click();
-        };
-
-        document.getElementById('settingsBtn').onclick = () => vscode.postMessage({ command: 'sendPrompt', prompt: '/settings' });
-        document.getElementById('exportBtn').onclick = () => vscode.postMessage({ command: 'exportHistory' });
-        document.getElementById('importBtn').onclick = () => vscode.postMessage({ command: 'importHistory' });
-        document.getElementById('sendBtn').onclick = () => {
-            const prompt = document.getElementById('promptInput').value.trim();
-            if (prompt) {
-                vscode.postMessage({ command: 'sendPrompt', prompt: prompt });
-                document.getElementById('promptInput').value = '';
-            }
-        };
-        document.getElementById('promptInput').addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') document.getElementById('sendBtn').click();
-        });
-        document.getElementById('searchBtn').onclick = () => {
-            const query = document.getElementById('searchInput').value.trim();
-            if (query) vscode.postMessage({ command: 'searchWorkspace', query: query });
-        };
-
-        window.addEventListener('message', (event) => {
-            const msg = event.data;
-            switch (msg.command) {
-                case 'selectionLoaded':
-                    document.getElementById('selectionInfo').style.display = 'block';
-                    document.getElementById('fileInfo').innerHTML = \`📄 \${msg.fileName} L\${msg.lineStart}-\${msg.lineEnd}\`;
-                    document.getElementById('selectedCode').textContent = msg.code;
-                    break;
-                case 'updateHistory':
-                    const historyDiv = document.getElementById('historyMessages');
-                    if (msg.history && msg.history.length) {
-                        historyDiv.innerHTML = msg.history.map(h => \`<div class="history-message \${h.role}"><strong>\${h.role === 'user' ? 'You' : 'AI'}:</strong> \${escapeHtml(h.content)}</div>\`).join('');
-                    } else {
-                        historyDiv.innerHTML = '<div class="system-message">No history yet</div>';
-                    }
-                    break;
-                case 'appendSystemMessage':
-                    const sysDiv = document.createElement('div');
-                    sysDiv.className = 'system-message';
-                    sysDiv.textContent = msg.message;
-                    document.getElementById('systemMessages').appendChild(sysDiv);
-                    setTimeout(() => sysDiv.remove(), 3000);
-                    break;
-                case 'searchResults':
-                    const resultsDiv = document.getElementById('searchResults');
-                    if (msg.results && msg.results.length) {
-                        resultsDiv.innerHTML = \`<strong>🔍 \${msg.count} matches</strong><ul>\${msg.results.map(r => \`<li onclick="vscode.postMessage({ command: 'openFile', path: '\${r.path}:\${r.line}' })">📄 \${r.name} L\${r.line}<div style="font-size:10px;">\${escapeHtml(r.preview)}</div></li>\`).join('')}</ul>\`;
-                    } else {
-                        resultsDiv.innerHTML = '<div class="system-message">No results found</div>';
-                    }
-                    resultsDiv.style.display = 'block';
-                    break;
-                case 'clearHistory':
-                    document.getElementById('historyMessages').innerHTML = '<div class="system-message">History cleared</div>';
-                    break;
-                case 'thinking':
-                    document.getElementById('thinking').style.display = msg.thinking ? 'flex' : 'none';
-                    break;
-                case 'clearResponse':
-                    currentResponse = '';
-                    document.getElementById('responseContent').innerHTML = '';
-                    document.getElementById('codeActions').style.display = 'none';
-                    document.getElementById('streamingIndicator').style.display = 'inline-block';
-                    document.getElementById('responseArea').style.display = 'block';
-                    break;
-                case 'streamChunk':
-                    currentResponse = msg.full;
-                    const responseDiv = document.getElementById('responseContent');
-                    responseDiv.innerHTML = marked.parse(msg.full);
-                    responseDiv.scrollTop = responseDiv.scrollHeight;
-                    break;
-                case 'streamComplete':
-                    document.getElementById('streamingIndicator').style.display = 'none';
-                    document.getElementById('codeActions').style.display = 'block';
-                    break;
-                case 'response':
-                    currentResponse = msg.response;
-                    document.getElementById('responseContent').innerHTML = marked.parse(msg.response);
-                    document.getElementById('responseArea').style.display = 'block';
-                    document.getElementById('codeActions').style.display = 'block';
-                    break;
-                case 'errorWithRetry':
-                    showError(msg.error, () => {
-                        vscode.postMessage({ command: 'retryPrompt', prompt: msg.originalPrompt });
-                    });
-                    break;
-                case 'error':
-                    showError(msg.error);
-                    break;
-            }
-        });
-
-        document.getElementById('applyBtn').onclick = () => vscode.postMessage({ command: 'applyCode', code: currentResponse });
-        document.getElementById('copyBtn').onclick = () => vscode.postMessage({ command: 'copyCode', code: currentResponse });
-
-        function showError(msg, retryFn) {
-            const errDiv = document.getElementById('errorMsg');
-            errDiv.innerHTML = \`<div>❌ \${escapeHtml(msg)}</div>\${retryFn ? '<button onclick="window.retryCallback()">⟳ Retry</button>' : ''}\`;
-            errDiv.style.display = 'block';
-            if (retryFn) window.retryCallback = retryFn;
-            setTimeout(() => errDiv.style.display = 'none', 8000);
-        }
-
-        function escapeHtml(text) { return text.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-</body>
-</html>`;
+    const htmlPath = path.join(extensionContext!.extensionPath, 'out', 'webview.html');
+    let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+    return htmlContent;
 }
 
 function escapeHtml(text: string): string {
     return text.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m] || m));
 }
 
-export function deactivate() {}
+export function deactivate() { }

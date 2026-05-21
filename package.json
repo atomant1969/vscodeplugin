@@ -12,6 +12,9 @@
     ],
     "activationEvents": [
         "onCommand:ai-code-assistant.addToAI",
+        "onCommand:ai-code-assistant.openPanel",
+        "onCommand:ai-code-assistant.addToAI",
+        "onCommand:ai-code-assistant.openPanel",
         "onCommand:ai-code-assistant.addFileToAI",
         "onCommand:ai-code-assistant.clearHistory",
         "onCommand:ai-code-assistant.reviewPR",
@@ -28,10 +31,25 @@
         "ai-assistant": "./bin/ai-assistant"
     },
     "contributes": {
+        "keybindings": [
+            {
+                "command": "ai-code-assistant.openPanel",
+                "key": "ctrl+shift+a",
+                "mac": "cmd+shift+a"
+            }
+        ],
         "commands": [
+            {
+                "command": "ai-code-assistant.openPanel",
+                "title": "Open AI Assistant"
+            },
             {
                 "command": "ai-code-assistant.addToAI",
                 "title": "Add to AI Assistant"
+            },
+            {
+                "command": "ai-code-assistant.openPanel",
+                "title": "Open AI Assistant"
             },
             {
                 "command": "ai-code-assistant.addFileToAI",
@@ -74,12 +92,40 @@
                 "title": "AI: Reconnect to Server"
             }
         ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "ai-assistant-sidebar",
+                    "title": "AI Assistant",
+                    "icon": "$(comment-discussion)"
+                }
+            ]
+        },
+        "views": {
+            "ai-assistant-sidebar": [
+                {
+                    "id": "ai-assistant-view",
+                    "name": "AI Assistant"
+                }
+            ]
+        },
         "menus": {
+            "commandPalette": [
+                {
+                    "command": "ai-code-assistant.openPanel",
+                    "when": "true"
+                }
+            ],
             "editor/context": [
                 {
                     "command": "ai-code-assistant.addToAI",
                     "group": "ai_assistant@1",
                     "when": "editorHasSelection"
+                },
+                {
+                    "command": "ai-code-assistant.openPanel",
+                    "group": "ai_assistant@2",
+                    "when": "true"
                 }
             ],
             "explorer/context": [
