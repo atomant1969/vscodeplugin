@@ -195,9 +195,15 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end;
+            min-height: 0;
             margin-top: 12px;
-            min-height: 80px;
+        }
+
+        #responseArea {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
         }
 
         .response-content {
@@ -206,8 +212,9 @@
             border-radius: 4px;
             font-size: 12px;
             line-height: 1.5;
-            max-height: 250px;
+            flex: 1;
             overflow-y: auto;
+            margin: 8px 0;
         }
 
         .response-content pre {
@@ -225,30 +232,6 @@
             font-family: monospace;
         }
 
-        .response-content h1,
-        .response-content h2,
-        .response-content h3 {
-            margin-top: 12px;
-            margin-bottom: 8px;
-        }
-
-        .response-content ul,
-        .response-content ol {
-            padding-left: 20px;
-            margin: 8px 0;
-        }
-
-        .response-content li {
-            margin: 4px 0;
-        }
-
-        .response-content blockquote {
-            border-left: 3px solid var(--vscode-textLink-foreground);
-            margin: 8px 0;
-            padding-left: 12px;
-            color: var(--vscode-descriptionForeground);
-        }
-
         .thinking {
             display: flex;
             align-items: center;
@@ -257,7 +240,7 @@
             padding: 8px;
             background: var(--vscode-editor-inactiveSelectionBackground);
             border-radius: 4px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
         }
 
         .loading-spinner {
@@ -349,14 +332,9 @@
 </head>
 
 <body>
-    <!-- Response area - bottom aligned -->
+    <!-- Response area -->
     <div class="response-container">
         <div id="responseArea" style="display: none;">
-            <!-- Thinking indicator at the top of response area -->
-            <div id="thinking" class="thinking" style="display: none;">
-                <div class="loading-spinner"></div>
-                <span>AI is thinking...</span>
-            </div>
             <div class="response-content" id="responseContent"></div>
             <div class="action-icons">
                 <button class="icon-btn" id="applyBtn" title="Apply to editor">📋 Apply</button>
@@ -372,8 +350,13 @@
         <code id="selectedCode"></code>
     </div>
 
-    <!-- Spacer -->
     <div class="spacer"></div>
+
+    <!-- Thinking indicator - above search -->
+    <div id="thinking" class="thinking" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>AI is thinking...</span>
+    </div>
 
     <!-- Search -->
     <div class="search-area">
@@ -477,11 +460,16 @@
                 vscode.postMessage({ command: 'getInitialHistory' });
             }
 
+            // FIXED: sendPrompt function added here
             function sendPrompt() {
                 const prompt = document.getElementById('promptInput').value.trim();
                 if (prompt) {
+                    console.log('Sending prompt:', prompt);
+                    updateStatus('Sending...');
                     vscode.postMessage({ command: 'sendPrompt', prompt: prompt });
                     document.getElementById('promptInput').value = '';
+                } else {
+                    updateStatus('Please enter a prompt');
                 }
             }
 
@@ -526,12 +514,14 @@
                 };
 
                 const promptInput = document.getElementById('promptInput');
-                promptInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendPrompt();
-                    }
-                });
+                if (promptInput) {
+                    promptInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendPrompt();  // Now this works because sendPrompt exists
+                        }
+                    });
+                }
 
                 document.getElementById('searchBtn').onclick = function() {
                     const query = document.getElementById('searchInput').value.trim();
@@ -540,17 +530,32 @@
                     }
                 };
 
-                document.getElementById('applyBtn').onclick = function() {
-                    if (currentResponse) {
-                        vscode.postMessage({ command: 'applyCode', code: currentResponse });
-                    }
-                };
+                const applyBtn = document.getElementById('applyBtn');
+                if (applyBtn) {
+                    applyBtn.onclick = function() {
+                        if (currentResponse && currentResponse.trim()) {
+                            const codeMatch = currentResponse.match(/```[\w]*\n([\s\S]*?)```/);
+                            if (codeMatch) {
+                                vscode.postMessage({ command: 'applyCode', code: codeMatch[1] });
+                            } else {
+                                vscode.postMessage({ command: 'applyCode', code: currentResponse });
+                            }
+                            updateStatus('Applying...');
+                        } else {
+                            updateStatus('Nothing to apply');
+                        }
+                    };
+                }
 
-                document.getElementById('copyBtn').onclick = function() {
-                    if (currentResponse) {
-                        vscode.postMessage({ command: 'copyCode', code: currentResponse });
-                    }
-                };
+                const copyBtn = document.getElementById('copyBtn');
+                if (copyBtn) {
+                    copyBtn.onclick = function() {
+                        if (currentResponse && currentResponse.trim()) {
+                            vscode.postMessage({ command: 'copyCode', code: currentResponse });
+                            updateStatus('Copied!');
+                        }
+                    };
+                }
             }
 
             if ('webkitSpeechRecognition' in window) {
@@ -563,7 +568,7 @@
                     sendPrompt();
                 };
                 recognition.onerror = function() {
-                    updateStatus('Voice recognition error');
+                    updateStatus('Voice error');
                 };
             }
 
@@ -587,7 +592,7 @@
                                     '<strong>' + (h.role === 'user' ? 'You' : 'AI') + ':</strong> ' +
                                     '<span>' + escapeHtml(h.content) + '</span>' +
                                     '</div>' +
-                                    '<button class="delete-history-btn" data-index="' + i + '" title="Delete this message">🗑️</button>' +
+                                    '<button class="delete-history-btn" data-index="' + i + '" title="Delete">🗑️</button>' +
                                     '</div>';
                             }
                             historyDiv.innerHTML = html;
@@ -611,7 +616,7 @@
                         sysDiv.className = 'system-message';
                         sysDiv.textContent = msg.message;
                         document.getElementById('systemMessages').appendChild(sysDiv);
-                        setTimeout(function() { sysDiv.remove(); }, 3000);
+                        setTimeout(() => sysDiv.remove(), 3000);
                         break;
                     case 'searchResults':
                         const resultsDiv = document.getElementById('searchResults');
@@ -627,25 +632,24 @@
                             html += '</ul>';
                             resultsDiv.innerHTML = html;
                         } else {
-                            resultsDiv.innerHTML = '<div class="system-message">No results found</div>';
+                            resultsDiv.innerHTML = '<div class="system-message">No results</div>';
                         }
                         resultsDiv.style.display = 'block';
                         break;
                     case 'clearHistory':
-                        document.getElementById('historyMessages').innerHTML = '<div class="system-message">History cleared</div>';
+                        document.getElementById('historyMessages').innerHTML = '<div class="system-message">Cleared</div>';
                         break;
                     case 'thinking':
-                        // Show/hide the thinking indicator in the response area
                         const thinkingEl = document.getElementById('thinking');
                         if (thinkingEl) {
                             thinkingEl.style.display = msg.thinking ? 'flex' : 'none';
                         }
-                        updateStatus(msg.thinking ? 'AI is thinking...' : 'Ready');
+                        updateStatus(msg.thinking ? 'Thinking...' : 'Ready');
                         break;
                     case 'clearResponse':
                         currentResponse = '';
                         document.getElementById('responseContent').innerHTML = '';
-                        document.getElementById('responseArea').style.display = 'block';
+                        document.getElementById('responseArea').style.display = 'flex';
                         break;
                     case 'streamChunk':
                         currentResponse = msg.full;
@@ -658,7 +662,7 @@
                     case 'response':
                         currentResponse = msg.response;
                         document.getElementById('responseContent').innerHTML = renderMarkdown(msg.response);
-                        document.getElementById('responseArea').style.display = 'block';
+                        document.getElementById('responseArea').style.display = 'flex';
                         updateStatus('Ready');
                         break;
                     case 'error':
@@ -666,7 +670,7 @@
                         const errDiv = document.getElementById('errorMsg');
                         errDiv.innerHTML = '❌ ' + escapeHtml(msg.error);
                         errDiv.style.display = 'block';
-                        setTimeout(function() { errDiv.style.display = 'none'; }, 5000);
+                        setTimeout(() => errDiv.style.display = 'none', 5000);
                         break;
                 }
             });
@@ -683,7 +687,7 @@
                 historyMsgsEl.style.display = 'none';
             }
             
-            updateStatus('Ready. Select code or type a question.');
+            updateStatus('Ready');
         })();
     </script>
 </body>
