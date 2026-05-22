@@ -54,10 +54,62 @@
             margin-bottom: 8px;
             cursor: pointer;
             user-select: none;
+            display: inline-block;
         }
 
         .history-header:hover {
             opacity: 0.8;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .right-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .right-controls button {
+            margin: 0;
+            padding: 2px 6px;
+            font-size: 11px;
+            background: none;
+            color: var(--vscode-descriptionForeground);
+            border: none;
+            cursor: pointer;
+        }
+
+        .right-controls button:hover {
+            color: var(--vscode-foreground);
+            background: var(--vscode-toolbar-hoverBackground);
+        }
+
+        .right-controls details {
+            display: inline-block;
+            margin: 0;
+        }
+
+        .right-controls summary {
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            list-style: none;
+            display: inline-block;
+        }
+
+        .right-controls summary:hover {
+            color: var(--vscode-foreground);
+        }
+
+        .right-controls details[open] summary {
+            color: var(--vscode-foreground);
         }
 
         .history-messages {
@@ -110,29 +162,6 @@
             color: var(--vscode-errorForeground);
         }
 
-        .toolbar {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-            flex-shrink: 0;
-        }
-
-        .toolbar button {
-            padding: 4px 8px;
-            font-size: 11px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .toolbar button:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-
         .search-area {
             display: flex;
             gap: 8px;
@@ -162,30 +191,23 @@
             flex-shrink: 0;
         }
 
-        button {
-            margin-top: 8px;
-            padding: 6px 12px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: var(--vscode-button-hoverBackground);
+        .response-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            margin-top: 12px;
+            min-height: 80px;
         }
 
         .response-content {
             background: var(--vscode-editor-inactiveSelectionBackground);
             padding: 10px;
             border-radius: 4px;
-            margin-top: 8px;
-            max-height: 250px;
-            overflow-y: auto;
             font-size: 12px;
             line-height: 1.5;
-            flex-shrink: 0;
+            max-height: 250px;
+            overflow-y: auto;
         }
 
         .response-content pre {
@@ -233,7 +255,9 @@
             gap: 8px;
             color: var(--vscode-descriptionForeground);
             padding: 8px;
-            flex-shrink: 0;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            margin-bottom: 8px;
         }
 
         .loading-spinner {
@@ -251,41 +275,34 @@
             }
         }
 
+        .action-icons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .icon-btn:hover {
+            background: var(--vscode-toolbar-hoverBackground);
+            color: var(--vscode-foreground);
+        }
+
         .error {
             color: var(--vscode-errorForeground);
             margin-top: 8px;
             padding: 8px;
             background: var(--vscode-inputValidation-errorBackground);
             border-radius: 4px;
-            flex-shrink: 0;
-        }
-
-        .streaming-cursor {
-            display: inline-block;
-            width: 2px;
-            height: 14px;
-            background: var(--vscode-foreground);
-            animation: blink 1s step-end infinite;
-            vertical-align: middle;
-            margin-left: 2px;
-        }
-
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0;
-            }
-        }
-
-        .code-actions {
-            margin-top: 8px;
-            display: flex;
-            gap: 8px;
             flex-shrink: 0;
         }
 
@@ -308,10 +325,6 @@
             flex-shrink: 0;
         }
 
-        #responseArea {
-            flex-shrink: 0;
-        }
-
         #searchResults {
             max-height: 100px;
             overflow-y: auto;
@@ -324,10 +337,6 @@
             flex-shrink: 0;
         }
 
-        .spacer {
-            flex: 1;
-        }
-
         kbd {
             background: var(--vscode-editor-background);
             border: 1px solid var(--vscode-panel-border);
@@ -336,28 +345,23 @@
             font-family: monospace;
             font-size: 10px;
         }
-
-        details {
-            margin-bottom: 12px;
-            flex-shrink: 0;
-        }
-
-        summary {
-            cursor: pointer;
-            color: var(--vscode-textLink-foreground);
-            font-size: 11px;
-        }
     </style>
 </head>
 
 <body>
-    <!-- Response at the top -->
-    <div id="responseArea" style="display: none;">
-        <div class="response-header">🤖 Response <span id="streamingIndicator" class="streaming-cursor"></span></div>
-        <div class="response-content" id="responseContent"></div>
-        <div class="code-actions" id="codeActions">
-            <button id="applyBtn">Apply</button>
-            <button id="copyBtn">Copy</button>
+    <!-- Response area - bottom aligned -->
+    <div class="response-container">
+        <div id="responseArea" style="display: none;">
+            <!-- Thinking indicator at the top of response area -->
+            <div id="thinking" class="thinking" style="display: none;">
+                <div class="loading-spinner"></div>
+                <span>AI is thinking...</span>
+            </div>
+            <div class="response-content" id="responseContent"></div>
+            <div class="action-icons">
+                <button class="icon-btn" id="applyBtn" title="Apply to editor">📋 Apply</button>
+                <button class="icon-btn" id="copyBtn" title="Copy to clipboard">📄 Copy</button>
+            </div>
         </div>
     </div>
 
@@ -368,13 +372,7 @@
         <code id="selectedCode"></code>
     </div>
 
-    <!-- Thinking indicator -->
-    <div id="thinking" class="thinking" style="display: none;">
-        <div class="loading-spinner"></div>
-        <span>AI is thinking...</span>
-    </div>
-
-    <!-- Spacer - pushes everything below to bottom -->
+    <!-- Spacer -->
     <div class="spacer"></div>
 
     <!-- Search -->
@@ -387,54 +385,44 @@
     <!-- System messages -->
     <div id="systemMessages"></div>
 
-    <!-- Textarea -->
-    <textarea id="promptInput" rows="3" placeholder="Ask AI... Type /help for commands"></textarea>
+    <textarea id="promptInput" rows="3" placeholder="Ask AI... Type /help for commands. Press Enter to send, Shift+Enter for new line. Try /voice, /image, @file.ts"></textarea>
 
-    <!-- Send button -->
-    <button id="sendBtn">Send</button>
-    <div style="font-size: 10px; margin-top: 4px;">💡 /help, /voice, /image, @file.ts, Ctrl+Enter to send</div>
-
-    <!-- Toolbar -->
-    <div class="toolbar">
-        <button id="voiceBtn">🎤 Voice</button>
-        <button id="imageBtn">🖼️ Image</button>
-        <button id="settingsBtn">⚙️ Settings</button>
-        <button id="exportBtn">💾 Export</button>
-        <button id="importBtn">📂 Import</button>
-        <button id="clearAllBtn">🗑️ Clear All</button>
+    <div class="header-row">
+        <div class="history-header" id="historyHeader">📜 History ▶</div>
+        <div class="right-controls">
+            <button id="voiceBtn" title="Voice input">🎤 Voice</button>
+            <button id="imageBtn" title="Upload image">🖼️ Image</button>
+            <button id="settingsBtn" title="Settings">⚙️ Settings</button>
+            <button id="exportBtn" title="Export history">💾 Export</button>
+            <button id="importBtn" title="Import history">📂 Import</button>
+            <button id="clearAllBtn" title="Clear all history">🗑️ Clear</button>
+            <details>
+                <summary>⌨️</summary>
+                <div style="position: absolute; right: 20px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 8px; margin-top: 4px; z-index: 100;">
+                    <div><kbd>Ctrl+Shift+F</kbd> - Fix code</div>
+                    <div><kbd>Ctrl+Shift+G</kbd> - Generate code</div>
+                    <div><kbd>Ctrl+Shift+E</kbd> - Explain code</div>
+                    <div><kbd>Ctrl+Shift+T</kbd> - Generate test</div>
+                    <div><kbd>Enter</kbd> - Send prompt</div>
+                    <div><kbd>Shift+Enter</kbd> - New line</div>
+                    <div><kbd>/help</kbd> - All slash commands</div>
+                </div>
+            </details>
+        </div>
     </div>
 
-    <!-- Keyboard shortcuts -->
-    <details>
-        <summary>⌨️ Keyboard Shortcuts</summary>
-        <div style="padding: 8px; font-size: 11px;">
-            <div><kbd>Ctrl+Shift+F</kbd> - Fix code</div>
-            <div><kbd>Ctrl+Shift+G</kbd> - Generate code</div>
-            <div><kbd>Ctrl+Shift+E</kbd> - Explain code</div>
-            <div><kbd>Ctrl+Shift+T</kbd> - Generate test</div>
-            <div><kbd>Ctrl+Enter</kbd> - Send prompt</div>
-            <div><kbd>/help</kbd> - All slash commands</div>
-        </div>
-    </details>
+    <div id="historyMessages" class="history-messages" style="display: none;"></div>
 
-    <!-- Error message -->
     <div id="errorMsg" class="error" style="display: none;"></div>
 
-    <!-- Status bar -->
     <div id="statusBar" class="status-bar">Ready</div>
 
-    <!-- History at the bottom -->
-    <div class="history-section">
-        <div class="history-header" id="historyHeader">📜 History ▼</div>
-        <div id="historyMessages" class="history-messages"></div>
-    </div>
-
-        <script>
+    <script>
         (function() {
             const vscode = acquireVsCodeApi();
             let currentResponse = '';
             let recognition = null;
-            let historyVisible = false; // Start collapsed (arrow right)
+            let historyVisible = false;
 
             function escapeHtml(text) {
                 if (!text) return '';
@@ -489,115 +477,82 @@
                 vscode.postMessage({ command: 'getInitialHistory' });
             }
 
-            // Initialize all event listeners
-            function initEventListeners() {
-                const historyHeader = document.getElementById('historyHeader');
-                if (historyHeader) historyHeader.onclick = toggleHistory;
-
-                const voiceBtn = document.getElementById('voiceBtn');
-                if (voiceBtn) {
-                    voiceBtn.onclick = function() {
-                        if (recognition) recognition.start();
-                        else updateStatus('Voice not supported');
-                    };
-                }
-
-                const imageBtn = document.getElementById('imageBtn');
-                if (imageBtn) {
-                    imageBtn.onclick = function() {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = function(e) {
-                            const file = e.target.files[0];
-                            const reader = new FileReader();
-                            reader.onload = function(ev) {
-                                const prompt = document.getElementById('promptInput').value || 'Analyze this image';
-                                vscode.postMessage({ command: 'sendImageInput', imageData: ev.target.result, prompt: prompt });
-                            };
-                            reader.readAsDataURL(file);
-                        };
-                        input.click();
-                    };
-                }
-
-                const settingsBtn = document.getElementById('settingsBtn');
-                if (settingsBtn) settingsBtn.onclick = function() {
-                    vscode.postMessage({ command: 'sendPrompt', prompt: '/settings' });
-                };
-
-                const exportBtn = document.getElementById('exportBtn');
-                if (exportBtn) exportBtn.onclick = function() {
-                    vscode.postMessage({ command: 'exportHistory' });
-                };
-
-                const importBtn = document.getElementById('importBtn');
-                if (importBtn) importBtn.onclick = function() {
-                    vscode.postMessage({ command: 'importHistory' });
-                };
-
-                const clearAllBtn = document.getElementById('clearAllBtn');
-                if (clearAllBtn) clearAllBtn.onclick = function() {
-                    vscode.postMessage({ command: 'clearHistory' });
-                };
-
-                const sendBtn = document.getElementById('sendBtn');
-                if (sendBtn) {
-                    sendBtn.onclick = function() {
-                        const prompt = document.getElementById('promptInput').value.trim();
-                        if (prompt) {
-                            vscode.postMessage({ command: 'sendPrompt', prompt: prompt });
-                            document.getElementById('promptInput').value = '';
-                        } else {
-                            updateStatus('Please enter a prompt');
-                        }
-                    };
-                }
-
-                const promptInput = document.getElementById('promptInput');
-                if (promptInput) {
-                    promptInput.addEventListener('keydown', function(e) {
-                        if (e.ctrlKey && e.key === 'Enter') {
-                            const btn = document.getElementById('sendBtn');
-                            if (btn) btn.click();
-                        }
-                    });
-                }
-
-                const searchBtn = document.getElementById('searchBtn');
-                if (searchBtn) {
-                    searchBtn.onclick = function() {
-                        const query = document.getElementById('searchInput').value.trim();
-                        if (query) {
-                            vscode.postMessage({ command: 'searchWorkspace', query: query });
-                        }
-                    };
-                }
-
-                const applyBtn = document.getElementById('applyBtn');
-                if (applyBtn) {
-                    applyBtn.onclick = function() {
-                        if (currentResponse) {
-                            vscode.postMessage({ command: 'applyCode', code: currentResponse });
-                        } else {
-                            updateStatus('Nothing to apply');
-                        }
-                    };
-                }
-
-                const copyBtn = document.getElementById('copyBtn');
-                if (copyBtn) {
-                    copyBtn.onclick = function() {
-                        if (currentResponse) {
-                            vscode.postMessage({ command: 'copyCode', code: currentResponse });
-                        } else {
-                            updateStatus('Nothing to copy');
-                        }
-                    };
+            function sendPrompt() {
+                const prompt = document.getElementById('promptInput').value.trim();
+                if (prompt) {
+                    vscode.postMessage({ command: 'sendPrompt', prompt: prompt });
+                    document.getElementById('promptInput').value = '';
                 }
             }
 
-            // Voice recognition setup
+            function initEventListeners() {
+                document.getElementById('historyHeader').onclick = toggleHistory;
+
+                document.getElementById('voiceBtn').onclick = function() {
+                    if (recognition) recognition.start();
+                    else updateStatus('Voice not supported');
+                };
+
+                document.getElementById('imageBtn').onclick = function() {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = function(e) {
+                        const file = e.target.files[0];
+                        const reader = new FileReader();
+                        reader.onload = function(ev) {
+                            const prompt = document.getElementById('promptInput').value || 'Analyze this image';
+                            vscode.postMessage({ command: 'sendImageInput', imageData: ev.target.result, prompt: prompt });
+                        };
+                        reader.readAsDataURL(file);
+                    };
+                    input.click();
+                };
+
+                document.getElementById('settingsBtn').onclick = function() {
+                    vscode.postMessage({ command: 'sendPrompt', prompt: '/settings' });
+                };
+
+                document.getElementById('exportBtn').onclick = function() {
+                    vscode.postMessage({ command: 'exportHistory' });
+                };
+
+                document.getElementById('importBtn').onclick = function() {
+                    vscode.postMessage({ command: 'importHistory' });
+                };
+
+                document.getElementById('clearAllBtn').onclick = function() {
+                    vscode.postMessage({ command: 'clearHistory' });
+                };
+
+                const promptInput = document.getElementById('promptInput');
+                promptInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendPrompt();
+                    }
+                });
+
+                document.getElementById('searchBtn').onclick = function() {
+                    const query = document.getElementById('searchInput').value.trim();
+                    if (query) {
+                        vscode.postMessage({ command: 'searchWorkspace', query: query });
+                    }
+                };
+
+                document.getElementById('applyBtn').onclick = function() {
+                    if (currentResponse) {
+                        vscode.postMessage({ command: 'applyCode', code: currentResponse });
+                    }
+                };
+
+                document.getElementById('copyBtn').onclick = function() {
+                    if (currentResponse) {
+                        vscode.postMessage({ command: 'copyCode', code: currentResponse });
+                    }
+                };
+            }
+
             if ('webkitSpeechRecognition' in window) {
                 recognition = new webkitSpeechRecognition();
                 recognition.continuous = false;
@@ -605,14 +560,13 @@
                 recognition.onresult = function(e) {
                     const text = e.results[0][0].transcript;
                     document.getElementById('promptInput').value = text;
-                    vscode.postMessage({ command: 'sendVoiceInput', text: text });
+                    sendPrompt();
                 };
                 recognition.onerror = function() {
                     updateStatus('Voice recognition error');
                 };
             }
 
-            // Message handler
             window.addEventListener('message', function(event) {
                 const msg = event.data;
                 
@@ -648,7 +602,6 @@
                         } else {
                             historyDiv.innerHTML = '<div class="system-message">No history yet</div>';
                         }
-                        // Keep collapsed state
                         if (!historyVisible) {
                             historyDiv.style.display = 'none';
                         }
@@ -682,14 +635,16 @@
                         document.getElementById('historyMessages').innerHTML = '<div class="system-message">History cleared</div>';
                         break;
                     case 'thinking':
-                        document.getElementById('thinking').style.display = msg.thinking ? 'flex' : 'none';
+                        // Show/hide the thinking indicator in the response area
+                        const thinkingEl = document.getElementById('thinking');
+                        if (thinkingEl) {
+                            thinkingEl.style.display = msg.thinking ? 'flex' : 'none';
+                        }
                         updateStatus(msg.thinking ? 'AI is thinking...' : 'Ready');
                         break;
                     case 'clearResponse':
                         currentResponse = '';
                         document.getElementById('responseContent').innerHTML = '';
-                        document.getElementById('codeActions').style.display = 'block';
-                        document.getElementById('streamingIndicator').style.display = 'inline-block';
                         document.getElementById('responseArea').style.display = 'block';
                         break;
                     case 'streamChunk':
@@ -698,15 +653,12 @@
                         document.getElementById('responseContent').scrollTop = document.getElementById('responseContent').scrollHeight;
                         break;
                     case 'streamComplete':
-                        document.getElementById('streamingIndicator').style.display = 'none';
-                        document.getElementById('codeActions').style.display = 'block';
                         updateStatus('Ready');
                         break;
                     case 'response':
                         currentResponse = msg.response;
                         document.getElementById('responseContent').innerHTML = renderMarkdown(msg.response);
                         document.getElementById('responseArea').style.display = 'block';
-                        document.getElementById('codeActions').style.display = 'block';
                         updateStatus('Ready');
                         break;
                     case 'error':
@@ -723,16 +675,10 @@
                 vscode.postMessage({ command: 'openFile', path: path });
             };
 
-            // Initialize everything
             initEventListeners();
             loadInitialHistory();
             
-            // Set initial collapsed state (arrow right, content hidden)
-            const historyHeaderEl = document.getElementById('historyHeader');
             const historyMsgsEl = document.getElementById('historyMessages');
-            if (historyHeaderEl && !historyVisible) {
-                historyHeaderEl.innerHTML = '📜 History ▶';
-            }
             if (historyMsgsEl) {
                 historyMsgsEl.style.display = 'none';
             }
