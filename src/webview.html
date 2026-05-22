@@ -337,7 +337,9 @@
         <div id="responseArea" style="display: none;">
             <div class="response-content" id="responseContent"></div>
             <div class="action-icons">
-                <button class="icon-btn" id="applyBtn" title="Apply to editor">📋 Apply</button>
+                <button class="icon-btn" id="applyBtn" title="Replace selected code">📋 Replace</button>
+                <button class="icon-btn" id="insertBtn" title="Insert at cursor">📝 Insert</button>
+                <button class="icon-btn" id="diffBtn" title="Preview changes">🔍 Diff</button>
                 <button class="icon-btn" id="copyBtn" title="Copy to clipboard">📄 Copy</button>
             </div>
         </div>
@@ -368,7 +370,8 @@
     <!-- System messages -->
     <div id="systemMessages"></div>
 
-    <textarea id="promptInput" rows="3" placeholder="Ask AI... Type /help for commands. Press Enter to send, Shift+Enter for new line. Try /voice, /image, @file.ts"></textarea>
+    <textarea id="promptInput" rows="3"
+        placeholder="Ask AI... Type /help for commands. Press Enter to send, Shift+Enter for new line. Try /voice, /image, @file.ts"></textarea>
 
     <div class="header-row">
         <div class="history-header" id="historyHeader">📜 History ▶</div>
@@ -381,7 +384,8 @@
             <button id="clearAllBtn" title="Clear all history">🗑️ Clear</button>
             <details>
                 <summary>⌨️</summary>
-                <div style="position: absolute; right: 20px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 8px; margin-top: 4px; z-index: 100;">
+                <div
+                    style="position: absolute; right: 20px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 8px; margin-top: 4px; z-index: 100;">
                     <div><kbd>Ctrl+Shift+F</kbd> - Fix code</div>
                     <div><kbd>Ctrl+Shift+G</kbd> - Generate code</div>
                     <div><kbd>Ctrl+Shift+E</kbd> - Explain code</div>
@@ -401,7 +405,7 @@
     <div id="statusBar" class="status-bar">Ready</div>
 
     <script>
-        (function() {
+        (function () {
             const vscode = acquireVsCodeApi();
             let currentResponse = '';
             let recognition = null;
@@ -409,7 +413,7 @@
 
             function escapeHtml(text) {
                 if (!text) return '';
-                return text.replace(/[&<>]/g, function(m) {
+                return text.replace(/[&<>]/g, function (m) {
                     if (m === '&') return '&amp;';
                     if (m === '<') return '&lt;';
                     if (m === '>') return '&gt;';
@@ -424,7 +428,7 @@
                 html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
                 html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
                 html = html.replace(/_(.*?)_/g, '<em>$1</em>');
-                html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+                html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (match, lang, code) {
                     return '<pre><code class="language-' + lang + '">' + code.trim() + '</code></pre>';
                 });
                 html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -460,7 +464,6 @@
                 vscode.postMessage({ command: 'getInitialHistory' });
             }
 
-            // FIXED: sendPrompt function added here
             function sendPrompt() {
                 const prompt = document.getElementById('promptInput').value.trim();
                 if (prompt) {
@@ -476,19 +479,50 @@
             function initEventListeners() {
                 document.getElementById('historyHeader').onclick = toggleHistory;
 
-                document.getElementById('voiceBtn').onclick = function() {
+                // Insert button handler
+                const insertBtn = document.getElementById('insertBtn');
+                if (insertBtn) {
+                    insertBtn.onclick = function () {
+                        if (currentResponse && currentResponse.trim()) {
+                            const codeMatch = currentResponse.match(/```[\w]*\n([\s\S]*?)```/);
+                            const code = codeMatch ? codeMatch[1] : currentResponse;
+                            vscode.postMessage({ command: 'insertCode', code: code });
+                            updateStatus('Inserting at cursor...');
+                        } else {
+                            updateStatus('Nothing to insert');
+                        }
+                    };
+                }
+
+                // Diff button handler
+                const diffBtn = document.getElementById('diffBtn');
+                if (diffBtn) {
+                    diffBtn.onclick = function () {
+                        if (currentResponse && currentResponse.trim()) {
+                            const codeMatch = currentResponse.match(/```[\w]*\n([\s\S]*?)```/);
+                            const code = codeMatch ? codeMatch[1] : currentResponse;
+                            // Get original selected code if any
+                            vscode.postMessage({ command: 'showDiff', code: code });
+                            updateStatus('Opening diff...');
+                        } else {
+                            updateStatus('Nothing to preview');
+                        }
+                    };
+                }
+
+                document.getElementById('voiceBtn').onclick = function () {
                     if (recognition) recognition.start();
                     else updateStatus('Voice not supported');
                 };
 
-                document.getElementById('imageBtn').onclick = function() {
+                document.getElementById('imageBtn').onclick = function () {
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = 'image/*';
-                    input.onchange = function(e) {
+                    input.onchange = function (e) {
                         const file = e.target.files[0];
                         const reader = new FileReader();
-                        reader.onload = function(ev) {
+                        reader.onload = function (ev) {
                             const prompt = document.getElementById('promptInput').value || 'Analyze this image';
                             vscode.postMessage({ command: 'sendImageInput', imageData: ev.target.result, prompt: prompt });
                         };
@@ -497,33 +531,33 @@
                     input.click();
                 };
 
-                document.getElementById('settingsBtn').onclick = function() {
+                document.getElementById('settingsBtn').onclick = function () {
                     vscode.postMessage({ command: 'sendPrompt', prompt: '/settings' });
                 };
 
-                document.getElementById('exportBtn').onclick = function() {
+                document.getElementById('exportBtn').onclick = function () {
                     vscode.postMessage({ command: 'exportHistory' });
                 };
 
-                document.getElementById('importBtn').onclick = function() {
+                document.getElementById('importBtn').onclick = function () {
                     vscode.postMessage({ command: 'importHistory' });
                 };
 
-                document.getElementById('clearAllBtn').onclick = function() {
+                document.getElementById('clearAllBtn').onclick = function () {
                     vscode.postMessage({ command: 'clearHistory' });
                 };
 
                 const promptInput = document.getElementById('promptInput');
                 if (promptInput) {
-                    promptInput.addEventListener('keydown', function(e) {
+                    promptInput.addEventListener('keydown', function (e) {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
-                            sendPrompt();  // Now this works because sendPrompt exists
+                            sendPrompt();
                         }
                     });
                 }
 
-                document.getElementById('searchBtn').onclick = function() {
+                document.getElementById('searchBtn').onclick = function () {
                     const query = document.getElementById('searchInput').value.trim();
                     if (query) {
                         vscode.postMessage({ command: 'searchWorkspace', query: query });
@@ -532,7 +566,7 @@
 
                 const applyBtn = document.getElementById('applyBtn');
                 if (applyBtn) {
-                    applyBtn.onclick = function() {
+                    applyBtn.onclick = function () {
                         if (currentResponse && currentResponse.trim()) {
                             const codeMatch = currentResponse.match(/```[\w]*\n([\s\S]*?)```/);
                             if (codeMatch) {
@@ -549,7 +583,7 @@
 
                 const copyBtn = document.getElementById('copyBtn');
                 if (copyBtn) {
-                    copyBtn.onclick = function() {
+                    copyBtn.onclick = function () {
                         if (currentResponse && currentResponse.trim()) {
                             vscode.postMessage({ command: 'copyCode', code: currentResponse });
                             updateStatus('Copied!');
@@ -562,19 +596,19 @@
                 recognition = new webkitSpeechRecognition();
                 recognition.continuous = false;
                 recognition.interimResults = false;
-                recognition.onresult = function(e) {
+                recognition.onresult = function (e) {
                     const text = e.results[0][0].transcript;
                     document.getElementById('promptInput').value = text;
                     sendPrompt();
                 };
-                recognition.onerror = function() {
+                recognition.onerror = function () {
                     updateStatus('Voice error');
                 };
             }
 
-            window.addEventListener('message', function(event) {
+            window.addEventListener('message', function (event) {
                 const msg = event.data;
-                
+
                 switch (msg.command) {
                     case 'selectionLoaded':
                         document.getElementById('selectionInfo').style.display = 'block';
@@ -596,9 +630,9 @@
                                     '</div>';
                             }
                             historyDiv.innerHTML = html;
-                            
-                            document.querySelectorAll('.delete-history-btn').forEach(function(btn) {
-                                btn.onclick = function(e) {
+
+                            document.querySelectorAll('.delete-history-btn').forEach(function (btn) {
+                                btn.onclick = function (e) {
                                     e.stopPropagation();
                                     const idx = parseInt(btn.getAttribute('data-index'));
                                     vscode.postMessage({ command: 'deleteHistoryEntry', index: idx });
@@ -675,18 +709,18 @@
                 }
             });
 
-            window.vscodeApiOpenFile = function(path) {
+            window.vscodeApiOpenFile = function (path) {
                 vscode.postMessage({ command: 'openFile', path: path });
             };
 
             initEventListeners();
             loadInitialHistory();
-            
+
             const historyMsgsEl = document.getElementById('historyMessages');
             if (historyMsgsEl) {
                 historyMsgsEl.style.display = 'none';
             }
-            
+
             updateStatus('Ready');
         })();
     </script>

@@ -48,7 +48,7 @@ let settings: UserSettings = {
     modelPreference: 'auto',
     autoApplySuggestions: false
 };
-
+let lastActiveEditor: vscode.TextEditor | undefined = undefined;
 // Get server URL from config
 function getServerUrl(): string {
     const config = vscode.workspace.getConfiguration('ai-assistant');
@@ -147,7 +147,101 @@ function createStatusBarItem() {
     setInterval(checkConnection, 30000);
     extensionContext?.subscriptions.push(statusBar);
 }
+async function handlePromptStreaming(prompt: string, panel: vscode.WebviewPanel) {
+    console.log('1. handlePromptStreaming STARTED with:', prompt);
+    const currentEditor = vscode.window.activeTextEditor;
+    if (currentEditor) {
+        lastActiveEditor = currentEditor;
+        console.log('Stored active editor:', currentEditor.document.fileName);
+    } else {
+        console.log('No active editor found when sending prompt');
+    }
+    lastActiveEditor = vscode.window.activeTextEditor;
+    try {
+        console.log('2. Processing slash commands...');
+        const processed = processSlashCommands(prompt, panel);
+        console.log('3. Processed result:', processed);
+        if (processed === null) {
+            console.log('4. Processed is null, returning');
+            return;
+        }
 
+        console.log('5. Processing file references...');
+        const referencedPrompt = await processFileReferences(processed, panel);
+        console.log('6. Referenced prompt:', referencedPrompt);
+
+        console.log('7. Adding to history...');
+        addToHistory('user', referencedPrompt);
+
+        console.log('8. Sending thinking and clearResponse...');
+        panel.webview.postMessage({ command: 'thinking', thinking: true });
+        panel.webview.postMessage({ command: 'clearResponse', clear: true });
+
+        let fullPrompt: string;
+        console.log('9. currentSelection:', currentSelection ? 'exists' : 'null');
+
+        if (currentSelection) {
+            fullPrompt = `Context: ${currentSelection.lineStart === 1 && currentSelection.lineEnd === currentSelection.code.split('\n').length ? 'Full file' : `Lines ${currentSelection.lineStart}-${currentSelection.lineEnd}`} from ${currentSelection.filePath.split(/[\\/]/).pop()}
+
+Code:
+\`\`\`
+${currentSelection.code}
+\`\`\`
+
+User Instruction: ${referencedPrompt}
+
+Respond with markdown. Show complete modified code blocks.`;
+        } else {
+            fullPrompt = referencedPrompt;
+        }
+        console.log('10. Full prompt length:', fullPrompt.length);
+
+        const serverUrl = getServerUrl();
+        console.log('11. Server URL:', serverUrl);
+
+        const streamUrl = `${serverUrl}/process/stream`;
+        console.log('12. Fetching from:', streamUrl);
+
+        const response = await fetch(streamUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: fullPrompt, task_type: 'chat' })
+        });
+        console.log('13. Response status:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = '';
+        console.log('14. Starting to read stream...');
+
+        while (reader) {
+            const { done, value } = await reader.read();
+            if (done) { break; }
+            const chunk = decoder.decode(value);
+            accumulated += chunk;
+            panel.webview.postMessage({ command: 'streamChunk', chunk: chunk, full: accumulated });
+        }
+        console.log('15. Stream complete, length:', accumulated.length);
+
+        addToHistory('assistant', accumulated);
+        panel.webview.postMessage({ command: 'streamComplete', response: accumulated });
+
+    } catch (error: any) {
+        console.error('ERROR in handlePromptStreaming:', error);
+        panel.webview.postMessage({
+            command: 'errorWithRetry',
+            error: error.message,
+            originalPrompt: prompt
+        });
+    } finally {
+        console.log('16. Finally block - hiding thinking');
+        panel.webview.postMessage({ command: 'thinking', thinking: false });
+    }
+}
 function registerCommands() {
     if (!extensionContext) { return; }
 
@@ -158,6 +252,9 @@ function registerCommands() {
             vscode.window.showErrorMessage('No active editor');
             return;
         }
+
+        // Store the active editor for button operations
+        lastActiveEditor = editor;
 
         const selection = editor.selection;
         if (selection.isEmpty) {
@@ -191,6 +288,9 @@ function registerCommands() {
 
     // Open AI Assistant without code selection (text-only chat)
     const openPanel = vscode.commands.registerCommand('ai-code-assistant.openPanel', () => {
+        // Store the active editor if available
+        lastActiveEditor = vscode.window.activeTextEditor;
+
         currentSelection = null;
         const panel = createOrShowAIPanel();
         panel.webview.postMessage({
@@ -202,6 +302,9 @@ function registerCommands() {
     // Add entire file to AI
     const addFileToAI = vscode.commands.registerCommand('ai-code-assistant.addFileToAI', async (uri: vscode.Uri) => {
         if (!uri) { return; }
+
+        // Store the active editor
+        lastActiveEditor = vscode.window.activeTextEditor;
 
         try {
             const fileContent = await vscode.workspace.fs.readFile(uri);
@@ -590,7 +693,82 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
     panel.onDidDispose(() => { currentPanel = null; }, null, extensionContext!.subscriptions);
 
     panel.webview.onDidReceiveMessage(async (message) => {
+        console.log('Received message:', message.command, message);
+
         switch (message.command) {
+            // Send prompt to AI
+            case 'sendPrompt':
+                await handlePromptStreaming(message.prompt, panel);
+                break;
+
+            case 'retryPrompt':
+                await handlePromptStreaming(message.prompt, panel);
+                break;
+
+            // INSERT: Inserts at cursor position (no selection needed)
+            // REPLACE: Replaces selected code (selection required)
+            case 'applyCode':
+                const replaceEditor = vscode.window.activeTextEditor;
+                if (!replaceEditor) {
+                    vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
+                    break;
+                }
+                if (replaceEditor.selection.isEmpty) {
+                    vscode.window.showWarningMessage('No code selected. Select code to replace, or use Insert button.');
+                    break;
+                }
+                const replaceSelection = replaceEditor.selection;
+                const replaceCode = message.code;
+                replaceEditor.edit(editBuilder => {
+                    editBuilder.replace(replaceSelection, replaceCode);
+                });
+                vscode.window.showInformationMessage('Code replaced');
+                break;
+
+            // INSERT: Inserts at cursor position (no selection needed)
+            case 'insertCode':
+                const insertEditor = vscode.window.activeTextEditor;
+                if (!insertEditor) {
+                    vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
+                    break;
+                }
+                const insertPosition = insertEditor.selection.active;
+                const insertCode = message.code;
+                insertEditor.edit(editBuilder => {
+                    editBuilder.insert(insertPosition, insertCode);
+                });
+                vscode.window.showInformationMessage('Code inserted at cursor');
+                break;
+
+            // DIFF: Shows side-by-side comparison
+            case 'showDiff':
+                const diffEditor = vscode.window.activeTextEditor;
+                if (!diffEditor) {
+                    vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
+                    break;
+                }
+                const newCode = message.code;
+                const languageId = diffEditor.document.languageId;
+                const timestamp = Date.now();
+                const tempUri = vscode.Uri.parse(`untitled:AI-Suggestion-${timestamp}.${languageId}`);
+                const tempDoc = await vscode.workspace.openTextDocument(tempUri);
+                const tempEditor = await vscode.window.showTextDocument(tempDoc, vscode.ViewColumn.Beside);
+                await tempEditor.edit(editBuilder => {
+                    const fullRange = new vscode.Range(
+                        tempDoc.positionAt(0),
+                        tempDoc.positionAt(tempDoc.getText().length)
+                    );
+                    editBuilder.replace(fullRange, newCode);
+                });
+                await vscode.languages.setTextDocumentLanguage(tempDoc, languageId);
+                vscode.window.showInformationMessage('Compare original (left) with AI suggestion (right)');
+                break;
+
+            case 'copyCode':
+                vscode.env.clipboard.writeText(message.code);
+                vscode.window.showInformationMessage('Code copied to clipboard');
+                break;
+
             case 'getInitialHistory':
                 panel.webview.postMessage({
                     command: 'updateHistory',
@@ -601,13 +779,13 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
                     }))
                 });
                 break;
+
             case 'deleteHistoryEntry':
                 console.log('Deleting history entry at index:', message.index);
                 const idx = message.index;
                 if (idx >= 0 && idx < chatHistory.length) {
                     chatHistory.splice(idx, 1);
                     saveHistory();
-                    // Refresh the history display
                     if (currentPanel) {
                         currentPanel.webview.postMessage({
                             command: 'updateHistory',
@@ -621,39 +799,42 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
                     vscode.window.showInformationMessage('Message deleted');
                 }
                 break;
-            case 'sendPrompt':
-                await handlePromptStreaming(message.prompt, panel);
-                break;
-            case 'retryPrompt':
-                await handlePromptStreaming(message.prompt, panel);
-                break;
-            case 'applyCode':
-                applyCodeToEditor(message.code);
-                break;
-            case 'copyCode':
-                vscode.env.clipboard.writeText(message.code);
-                vscode.window.showInformationMessage('Code copied');
-                break;
-            case 'executeCommand':
-                await executeTerminalCommand(message.command, panel);
-                break;
-            case 'searchWorkspace':
-                await searchWorkspace(message.query, panel);
-                break;
-            case 'openFile':
-                await openFile(message.path, panel);
-                break;
+
             case 'clearHistory':
                 chatHistory = [];
                 saveHistory();
                 panel.webview.postMessage({ command: 'historyCleared' });
                 break;
+
+            case 'executeCommand':
+                await executeTerminalCommand(message.command, panel);
+                break;
+
+            case 'searchWorkspace':
+                await searchWorkspace(message.query, panel);
+                break;
+
+            case 'openFile':
+                await openFile(message.path, panel);
+                break;
+
             case 'sendVoiceInput':
                 await handlePromptStreaming(message.text, panel);
                 break;
+
             case 'sendImageInput':
                 await handleImageInput(message.imageData, message.prompt, panel);
                 break;
+
+            case 'exportHistory':
+                // Trigger export from registerCommands
+                vscode.commands.executeCommand('ai-code-assistant.exportHistory');
+                break;
+
+            case 'importHistory':
+                vscode.commands.executeCommand('ai-code-assistant.importHistory');
+                break;
+
             case 'applyMultiFile':
                 lastMultiFileEdit = message.changes;
                 for (const change of message.changes) {
@@ -864,67 +1045,7 @@ function processSlashCommands(input: string, panel: vscode.WebviewPanel): string
     return input;
 }
 
-async function handlePromptStreaming(prompt: string, panel: vscode.WebviewPanel) {
-    const processed = processSlashCommands(prompt, panel);
-    if (processed === null) { return; }
 
-    const referencedPrompt = await processFileReferences(processed, panel);
-
-    addToHistory('user', referencedPrompt);
-    panel.webview.postMessage({ command: 'thinking', thinking: true });
-    panel.webview.postMessage({ command: 'clearResponse', clear: true });
-
-    let fullPrompt: string;
-
-    if (currentSelection) {
-        fullPrompt = `Context: ${currentSelection.lineStart === 1 && currentSelection.lineEnd === currentSelection.code.split('\n').length ? 'Full file' : `Lines ${currentSelection.lineStart}-${currentSelection.lineEnd}`} from ${currentSelection.filePath.split(/[\\/]/).pop()}
-
-Code:
-\`\`\`
-${currentSelection.code}
-\`\`\`
-
-User Instruction: ${referencedPrompt}
-
-Respond with markdown. Show complete modified code blocks.`;
-    } else {
-        fullPrompt = referencedPrompt;
-    }
-
-    try {
-        const response = await fetch(`${getServerUrl()}/process/stream`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: fullPrompt, task_type: 'chat' })
-        });
-
-        if (!response.ok) { throw new Error(`HTTP ${response.status}`); }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let accumulated = '';
-
-        while (reader) {
-            const { done, value } = await reader.read();
-            if (done) { break; }
-            const chunk = decoder.decode(value);
-            accumulated += chunk;
-            panel.webview.postMessage({ command: 'streamChunk', chunk: chunk, full: accumulated });
-        }
-
-        addToHistory('assistant', accumulated);
-        panel.webview.postMessage({ command: 'streamComplete', response: accumulated });
-
-    } catch (error: any) {
-        panel.webview.postMessage({
-            command: 'errorWithRetry',
-            error: error.message,
-            originalPrompt: prompt
-        });
-    } finally {
-        panel.webview.postMessage({ command: 'thinking', thinking: false });
-    }
-}
 
 function applyCodeToEditor(content: string) {
     const editor = vscode.window.activeTextEditor;
