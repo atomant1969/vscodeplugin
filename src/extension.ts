@@ -753,7 +753,7 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
                 vscode.window.showInformationMessage('Code inserted at cursor');
                 break;
 
-            // DIFF: Shows side-by-side comparison
+            // DIFF: Shows side-by-side diff of original vs AI suggestion
             case 'showDiff':
                 const diffEditor = vscode.window.activeTextEditor;
                 if (!diffEditor) {
@@ -762,19 +762,34 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
                 }
                 const newCode = message.code;
                 const languageId = diffEditor.document.languageId;
-                const timestamp = Date.now();
-                const tempUri = vscode.Uri.parse(`untitled:AI-Suggestion-${timestamp}.${languageId}`);
-                const tempDoc = await vscode.workspace.openTextDocument(tempUri);
-                const tempEditor = await vscode.window.showTextDocument(tempDoc, vscode.ViewColumn.Beside);
-                await tempEditor.edit(editBuilder => {
-                    const fullRange = new vscode.Range(
-                        tempDoc.positionAt(0),
-                        tempDoc.positionAt(tempDoc.getText().length)
-                    );
-                    editBuilder.replace(fullRange, newCode);
+                const ts = Date.now();
+
+                let originalCode: string;
+                if (currentSelection && diffEditor.document.fileName === currentSelection.filePath) {
+                    originalCode = currentSelection.code;
+                } else if (!diffEditor.selection.isEmpty) {
+                    originalCode = diffEditor.document.getText(diffEditor.selection);
+                } else {
+                    vscode.window.showWarningMessage('No original code to compare. Select code first or use Replace/Insert.');
+                    break;
+                }
+
+                const originalUri = vscode.Uri.parse(`untitled:Original-${ts}.${languageId}`);
+                const modifiedUri = vscode.Uri.parse(`untitled:AI-Suggestion-${ts}.${languageId}`);
+
+                const origDoc = await vscode.workspace.openTextDocument(originalUri);
+                const origEditor = await vscode.window.showTextDocument(origDoc, { preview: true });
+                await origEditor.edit(editBuilder => {
+                    editBuilder.insert(new vscode.Position(0, 0), originalCode);
                 });
-                await vscode.languages.setTextDocumentLanguage(tempDoc, languageId);
-                vscode.window.showInformationMessage('Compare original (left) with AI suggestion (right)');
+
+                const modDoc = await vscode.workspace.openTextDocument(modifiedUri);
+                const modEditor = await vscode.window.showTextDocument(modDoc, { preview: true });
+                await modEditor.edit(editBuilder => {
+                    editBuilder.insert(new vscode.Position(0, 0), newCode);
+                });
+
+                await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, 'Original ↔ AI Suggestion');
                 break;
 
             case 'copyCode':
