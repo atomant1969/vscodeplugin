@@ -705,24 +705,37 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
                 await handlePromptStreaming(message.prompt, panel);
                 break;
 
-            // INSERT: Inserts at cursor position (no selection needed)
-            // REPLACE: Replaces selected code (selection required)
+            // REPLACE: Replaces the originally selected code using stored selection range
             case 'applyCode':
                 const replaceEditor = vscode.window.activeTextEditor;
                 if (!replaceEditor) {
                     vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
                     break;
                 }
-                if (replaceEditor.selection.isEmpty) {
-                    vscode.window.showWarningMessage('No code selected. Select code to replace, or use Insert button.');
-                    break;
-                }
-                const replaceSelection = replaceEditor.selection;
                 const replaceCode = message.code;
-                replaceEditor.edit(editBuilder => {
-                    editBuilder.replace(replaceSelection, replaceCode);
-                });
-                vscode.window.showInformationMessage('Code replaced');
+                if (currentSelection && replaceEditor.document.fileName === currentSelection.filePath) {
+                    const startLine = currentSelection.lineStart - 1;
+                    const endLine = currentSelection.lineEnd - 1;
+                    if (endLine >= replaceEditor.document.lineCount) {
+                        vscode.window.showErrorMessage('Original selection range is outside document bounds. File may have changed.');
+                        break;
+                    }
+                    const range = new vscode.Range(
+                        startLine, 0,
+                        endLine, replaceEditor.document.lineAt(endLine).text.length
+                    );
+                    replaceEditor.edit(editBuilder => {
+                        editBuilder.replace(range, replaceCode);
+                    });
+                    vscode.window.showInformationMessage('Code replaced');
+                } else if (!replaceEditor.selection.isEmpty) {
+                    replaceEditor.edit(editBuilder => {
+                        editBuilder.replace(replaceEditor.selection, replaceCode);
+                    });
+                    vscode.window.showInformationMessage('Code replaced');
+                } else {
+                    vscode.window.showWarningMessage('No code selected. Select code to replace, or use Insert button.');
+                }
                 break;
 
             // INSERT: Inserts at cursor position (no selection needed)
