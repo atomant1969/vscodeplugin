@@ -761,7 +761,7 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
 
             // REPLACE: Replaces the originally selected code using stored selection range
             case 'applyCode':
-                const replaceEditor = vscode.window.activeTextEditor;
+                let replaceEditor = vscode.window.activeTextEditor || lastActiveEditor;
                 if (!replaceEditor) {
                     vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
                     break;
@@ -794,7 +794,7 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
 
             // INSERT: Inserts at cursor position (no selection needed)
             case 'insertCode':
-                const insertEditor = vscode.window.activeTextEditor;
+                const insertEditor = vscode.window.activeTextEditor || lastActiveEditor;
                 if (!insertEditor) {
                     vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
                     break;
@@ -809,7 +809,7 @@ function createOrShowAIPanel(): vscode.WebviewPanel {
 
             // DIFF: Shows side-by-side diff of original vs AI suggestion
             case 'showDiff':
-                const diffEditor = vscode.window.activeTextEditor;
+                const diffEditor = vscode.window.activeTextEditor || lastActiveEditor;
                 if (!diffEditor) {
                     vscode.window.showErrorMessage('No active editor. Please click in the editor first.');
                     break;
