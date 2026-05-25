@@ -156,7 +156,6 @@ async function handlePromptStreaming(prompt: string, panel: vscode.WebviewPanel)
     } else {
         console.log('No active editor found when sending prompt');
     }
-    lastActiveEditor = vscode.window.activeTextEditor;
     try {
         console.log('2. Processing slash commands...');
         const processed = processSlashCommands(prompt, panel);
