@@ -230,6 +230,60 @@ Respond with markdown. Show complete modified code blocks.`;
         addToHistory('assistant', accumulated);
         panel.webview.postMessage({ command: 'streamComplete', response: accumulated });
 
+        if (settings.autoApplySuggestions && currentSelection) {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && editor.document.fileName === currentSelection.filePath) {
+                const codeMatch = accumulated.match(/```[\w]*\n([\s\S]*?)```/);
+                const applyCode = codeMatch ? codeMatch[1] : accumulated;
+                const langId = editor.document.languageId;
+                const ts = Date.now();
+                const sel = currentSelection;
+
+                const originalUri = vscode.Uri.parse(`untitled:Original-${ts}.${langId}`);
+                const modifiedUri = vscode.Uri.parse(`untitled:AI-Suggestion-${ts}.${langId}`);
+
+                const origDoc = await vscode.workspace.openTextDocument(originalUri);
+                const origEdit = await vscode.window.showTextDocument(origDoc, { preview: true });
+                await origEdit.edit(b => b.insert(new vscode.Position(0, 0), sel.code));
+
+                const modDoc = await vscode.workspace.openTextDocument(modifiedUri);
+                const modEdit = await vscode.window.showTextDocument(modDoc, { preview: true });
+                await modEdit.edit(b => b.insert(new vscode.Position(0, 0), applyCode));
+
+                await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, 'AI Suggestion — Review Changes');
+
+                const choice = await vscode.window.showInformationMessage(
+                    'Apply this AI suggestion?',
+                    { modal: false },
+                    '✅ Accept',
+                    '❌ Reject'
+                );
+
+                if (choice === '✅ Accept') {
+                    const startLine = sel.lineStart - 1;
+                    const endLine = sel.lineEnd - 1;
+                    if (endLine < editor.document.lineCount) {
+                        const range = new vscode.Range(
+                            startLine, 0,
+                            endLine, editor.document.lineAt(endLine).text.length
+                        );
+                        await editor.edit(editBuilder => {
+                            editBuilder.replace(range, applyCode);
+                        });
+                    }
+                    panel.webview.postMessage({
+                        command: 'appendSystemMessage',
+                        message: '✅ Changes applied'
+                    });
+                } else {
+                    panel.webview.postMessage({
+                        command: 'appendSystemMessage',
+                        message: '❌ Changes rejected'
+                    });
+                }
+            }
+        }
+
     } catch (error: any) {
         console.error('ERROR in handlePromptStreaming:', error);
         panel.webview.postMessage({
